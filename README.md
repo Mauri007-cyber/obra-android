@@ -1,14 +1,20 @@
-# Obra — distribución del APK
+# Obra
 
-Este repositorio solo sirve el APK firmado y el manifiesto de actualización de la app **Obra**.
+App Android para medir, presupuestar y ensenar una reforma. Coste 0 EUR, sin cuenta.
 
-- `update.json`: lo consulta la app al abrir para saber si hay versión nueva.
-- Releases: contienen el `obra-X.Y.Z.apk`. La app descarga, comprueba el SHA-256 y lanza el instalador.
+**Estado 0.9.4**
 
-## Cómo publicar una versión nueva
+- Proyecto por estancias: catalogo de mas de 45 cambios por oficio, con aprobacion del cliente.
+- Recorrido final con solo lo aprobado.
+- IA opcional (Cloudflare Workers AI, FLUX.2 klein): apagada por defecto y sin claves en el APK.
+- APK firmada en la release v0.9.4.
 
-1. El APK se genera con `scripts/nueva-version.sh` (o a mano) y queda en `apk/`.
-2. Se sube como **asset** de una release con tag `vX.Y.Z` (arrastrar el fichero en la web de GitHub).
-3. Se actualiza `update.json` con `versionCode`, `versionName`, `apkUrl`, `sha256` y notas.
+**Documentacion**
 
-La app solo acepta HTTPS, rechaza versiones con `versionCode` menor o igual y verifica el SHA-256 antes de instalar. Android siempre pide confirmación: es una actualización con un toque, no silenciosa.
+- PLAN-OBRA-COMPLETA.md: el replanteo del producto.
+- ROADMAP.md: hitos y estado.
+- worker/DESPLEGAR.md: desplegar el intermediario.
+
+**Actualizaciones**
+
+La app consulta update.json, descarga el APK de la release, verifica el SHA-256 e instala encima.
