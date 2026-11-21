@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obra · Proyecto completo</title>
+<link rel="stylesheet" href="proyecto.css">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="marca">
+    <span class="punto"></span>
+    <div>
+      <p class="ojo">Proyecto de obra</p>
+      <h1 id="titulo-obra">Piso de la abuela</h1>
+      <p class="dir" id="dir-obra">Calle Mayor 12 · 3º B</p>
+    </div>
+  </div>
+  <div class="acciones-cabecera">
+    <button class="boton fantasma" id="reiniciar">Reiniciar demo</button>
+    <button class="boton principal" id="ensenar">Enseñar obra terminada</button>
+  </div>
+</header>
+
+<section class="resumen">
+  <div class="dato">
+    <span class="etiqueta">Aprobado</span>
+    <strong id="total-aprobado">0 €</strong>
+  </div>
+  <div class="dato">
+    <span class="etiqueta">Por decidir</span>
+    <strong id="total-pendiente">0 €</strong>
+  </div>
+  <div class="dato">
+    <span class="etiqueta">Estancias</span>
+    <strong id="total-estancias">0</strong>
+  </div>
+  <div class="progreso-caja">
+    <div class="barra"><div id="barra-progreso"></div></div>
+    <p id="texto-progreso" class="nota">0 de 0 cambios aprobados</p>
+  </div>
+</section>
+
+<main id="estancias" class="rejilla"></main>
+
+<p class="pie">
+  Cada estancia lleva su lista de cambios. El cliente aprueba, descarta o deja pendiente;
+  lo aprobado es lo que cuenta para el dinero y para lo que se enseña al final.
+</p>
+
+<!-- Catálogo -->
+<div class="velo" id="velo-catalogo" hidden>
+  <div class="panel" role="dialog" aria-modal="true" aria-labelledby="titulo-catalogo">
+    <div class="panel-cabecera">
+      <div>
+        <p class="ojo" id="catalogo-ambito">Catálogo</p>
+        <h2 id="titulo-catalogo">Añadir cambio</h2>
+      </div>
+      <button class="cerrar" id="cerrar-catalogo" aria-label="Cerrar">✕</button>
+    </div>
+    <input type="search" id="buscar" class="buscador" placeholder="Buscar: suelo, baño, puerta, luz…">
+    <div class="panel-cuerpo" id="lista-catalogo"></div>
+  </div>
+</div>
+
+<!-- Recorrido final -->
+<div class="velo" id="velo-recorrido" hidden>
+  <div class="recorrido" role="dialog" aria-modal="true" aria-labelledby="titulo-recorrido">
+    <div class="recorrido-cabecera">
+      <div>
+        <p class="ojo">Lo que se ve al final</p>
+        <h2 id="titulo-recorrido">La obra terminada</h2>
+      </div>
+      <button class="cerrar" id="cerrar-recorrido" aria-label="Cerrar">✕</button>
+    </div>
+    <div class="recorrido-cuerpo" id="recorrido-cuerpo"></div>
+    <div class="recorrido-pie">
+      <div>
+        <span class="etiqueta">Total aprobado</span>
+        <strong id="total-recorrido">0 €</strong>
+      </div>
+      <button class="boton principal" id="volver">Volver al proyecto</button>
+    </div>
+  </div>
+</div>
+
+<script src="proyecto.js"></script>
+</body>
+</html>

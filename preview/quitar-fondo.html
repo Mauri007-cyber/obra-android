@@ -1,0 +1,85 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Obra · Quitar el fondo</title>
+<link rel="icon" href="data:,">
+<link rel="stylesheet" href="quitar-fondo.css">
+</head>
+<body>
+
+<header class="cabecera">
+  <div class="marca">
+    <span class="punto"></span>
+    <div>
+      <p class="ojo">Foto real · recorte</p>
+      <h1>Quitar el fondo de una foto</h1>
+    </div>
+  </div>
+  <a class="volver" href="index.html">‹ Vista previa</a>
+</header>
+
+<p class="intro">
+  Sube la foto de un mueble, una puerta o un material y ApyHub devuelve un PNG con
+  el fondo transparente. Sirve para montar recortes sobre la obra terminada o para el catálogo.
+</p>
+
+<main class="taller">
+  <section class="panel">
+    <label class="campo">
+      <span>Dirección del servicio</span>
+      <input id="servicio" type="url" inputmode="url" spellcheck="false"
+             placeholder="https://obra-ia.TU-SUBDOMINIO.workers.dev">
+    </label>
+    <p class="nota">
+      Es el Worker de Obra. El token de ApyHub vive solo allí: esta página nunca lo pide ni lo guarda.
+    </p>
+
+    <div id="zona" class="zona">
+      <input id="archivo" type="file" accept="image/png,image/jpeg" hidden>
+      <p class="zona-titulo">Arrastra una foto aquí</p>
+      <p class="nota">o <button type="button" class="enlace" id="elegir">búscala en el móvil</button></p>
+      <p class="nota">JPEG o PNG, hasta 8 MB.</p>
+    </div>
+
+    <div class="acciones">
+      <button type="button" class="boton" id="quitar" disabled>Quitar el fondo</button>
+      <a class="boton secundario" id="descargar" download="recorte.png" hidden>Descargar PNG</a>
+      <button type="button" class="boton fantasma" id="limpiar">Limpiar</button>
+    </div>
+
+    <p class="estado" id="estado" role="status" aria-live="polite">
+      Elige una foto para empezar. La original no se modifica: si algo falla, se queda como está.
+    </p>
+  </section>
+
+  <section class="comparar" aria-label="Antes y después">
+    <figure class="lamina">
+      <figcaption>Original</figcaption>
+      <div class="marco">
+        <img id="original" alt="Foto original sin recortar">
+        <p class="vacio" id="vacio-original">Sin foto</p>
+      </div>
+    </figure>
+    <figure class="lamina">
+      <figcaption>
+        Recorte
+        <span class="sello" id="sello" hidden></span>
+      </figcaption>
+      <div class="marco tablero">
+        <img id="recorte" alt="Foto con el fondo quitado, sobre cuadros de transparencia">
+        <p class="vacio" id="vacio-recorte">Aquí saldrá el PNG transparente</p>
+      </div>
+    </figure>
+  </section>
+</main>
+
+<p class="pie">
+  El recorte automático no siempre clava los bordes: pelo, cristal, barandillas y sombras suelen
+  salir con restos. Revísalo antes de enseñarlo. Se cobra por imagen en ApyHub (1.000 átomos).
+</p>
+
+<script src="quitar-fondo.js"></script>
+</body>
+</html>

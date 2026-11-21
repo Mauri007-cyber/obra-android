@@ -1,0 +1,69 @@
+# Obra
+
+App Android para medir una estancia, sacar el plano, presupuestar una reforma y **enseñar la
+obra terminada** al cliente. Sin cuenta, sin nube obligatoria y con **coste 0 €**.
+
+- Replanteo del producto: [PLAN-OBRA-COMPLETA.md](PLAN-OBRA-COMPLETA.md)
+- Hoja de ruta y estado: [ROADMAP.md](ROADMAP.md)
+- Intermediario de IA: [worker/DESPLEGAR.md](worker/DESPLEGAR.md)
+
+## Estado: 0.9.4
+
+- **Proyecto por estancias**: cada obra tiene las habitaciones que haga falta y cada habitación
+  una lista de cambios elegidos de un catálogo de más de 45 partidas por oficio.
+- **Evaluación del cliente**: cada cambio se aprueba, se deja pendiente o se descarta. Lo
+  aprobado es lo que cuenta para el dinero y para lo que se enseña.
+- **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia; todavía no genera una imagen de la obra terminada.
+- **IA opcional**: existe una pantalla de retoque separada. El prompt derivado de los cambios aprobados aún no está conectado a ella. La integración real del modelo no se ha validado.
+- La IA **nunca** está en el camino crítico: apagada por defecto y sin claves en el APK.
+- **Quitar el fondo** de una foto (ApyHub, opcional) desde la vista previa web: la foto pasa por el
+  Worker, que guarda el token y devuelve un PNG transparente para descargar. El token vive solo en
+  el Worker (`APY_TOKEN`); la app y la web nunca lo ven.
+
+## Distribución y actualizaciones
+
+- `update.json`: lo consulta la app al abrir para saber si hay versión nueva.
+- Releases: contienen `obra-X.Y.Z.apk`. La app descarga, comprueba el SHA-256 y lanza el
+  instalador. Android siempre pide confirmación: es una actualización con un toque, no silenciosa.
+- Para publicar: subir el APK como asset de una release `vX.Y.Z` y actualizar `update.json` con
+  `versionCode`, `versionName`, `apkUrl` y `sha256`.
+
+## Compilar
+
+El toolchain vive fuera del repo (`$HOME/toolchain`): JDK, Gradle 8.13 y Android SDK.
+
+```bash
+scripts/build.sh :app:assembleDebug     # APK de pruebas
+scripts/build.sh :app:assembleRelease   # APK firmada
+```
+
+### La firma es lo que permite actualizar
+
+Todas las versiones deben ir firmadas con la misma clave. La del proyecto está fuera de Git
+  (`$HOME/obra-keys/obra-release.jks` y `keystore.properties`). **Si se pierde, no se puede
+actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copia segura de la clave y de los datos.
+
+## Limitaciones importantes
+
+- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales.
+- La exportación incluye los cambios, pero no los archivos de fotos y aún no existe una importación completa. No la consideres una copia de seguridad restaurable.
+- El Worker carece de autenticación y sus contadores no son un control fiable de gasto. No lo expongas públicamente con servicios de pago activos hasta protegerlo.
+- El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.
+
+## Desplegar el intermediario de IA
+
+```bash
+cd worker
+npx --yes wrangler@4 login
+npx --yes wrangler@4 deploy
+```
+
+En Windows hay un `worker/desplegar.cmd` que lo hace todo y guarda el error real en
+`despliegue.log`. Detalles y fallos conocidos en [worker/DESPLEGAR.md](worker/DESPLEGAR.md).
+
+## Pruebas
+
+```bash
+node --test worker/prueba.mjs worker/prueba-handler.mjs worker/prueba-fondo.mjs
+scripts/build.sh :app:testDebugUnitTest
+```

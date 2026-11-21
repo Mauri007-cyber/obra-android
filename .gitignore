@@ -1,0 +1,20 @@
+*.iml
+.gradle
+/local.properties
+/.idea
+.DS_Store
+/build
+/app/build
+/captures
+.externalNativeBuild
+.cxx
+keystore.properties
+*.jks
+*.keystore
+/local-toolchain
+
+# Logs de compilación
+*.log
+
+# Código de la PWA de presupuestos (temporal, solo para la integración)
+pwa/

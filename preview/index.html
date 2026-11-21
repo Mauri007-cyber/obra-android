@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="es">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Obra — vista previa</title>
+    <link rel="icon" href="data:," />
+    <link rel="stylesheet" href="estilos.css" />
+    <link rel="stylesheet" href="fotorreal.css" />
+  </head>
+  <body>
+    <div class="marco">
+      <aside class="menu">
+        <div class="marca">
+          <span class="marca-punto"></span>
+          <div>
+            <strong>Obra</strong>
+            <small>vista previa · 0.9.3</small>
+          </div>
+        </div>
+
+        <p class="menu-titulo">Trabajo</p>
+        <button class="menu-item" data-pantalla="inicio">Inicio · obras</button>
+        <button class="menu-item" data-pantalla="obra">La obra</button>
+        <button class="menu-item" data-pantalla="plano">Plano</button>
+        <button class="menu-item" data-pantalla="medir">Medir</button>
+        <button class="menu-item" data-pantalla="ensenar">Enseñar al cliente</button>
+
+        <p class="menu-titulo">Foto real</p>
+        <button class="menu-item" data-pantalla="foto">1 · Foto y superficies</button>
+        <button class="menu-item" data-pantalla="materiales">2 · Materiales y luces</button>
+        <button class="menu-item" data-pantalla="ia">3 · Retoque con IA</button>
+        <a class="menu-item" href="quitar-fondo.html" style="display:block;text-decoration:none;color:inherit">
+          Quitar el fondo de una foto →
+        </a>
+
+        <p class="menu-titulo">Obra completa</p>
+        <a class="menu-item" href="proyecto.html" style="display:block;text-decoration:none;color:inherit">
+          Proyecto: estancias y cambios →
+        </a>
+
+        <p class="menu-titulo">Presupuesto</p>
+        <button class="menu-item" data-pantalla="lista">Presupuestos</button>
+        <button class="menu-item" data-pantalla="editor">Editor del presupuesto</button>
+        <button class="menu-item" data-pantalla="precios">Mis precios</button>
+        <button class="menu-item" data-pantalla="ajustes">Ajustes</button>
+
+        <p class="nota-menu">
+          Todo es HTML de verdad: los totales se calculan en céntimos enteros, como en la PWA.
+        </p>
+      </aside>
+
+      <main class="escenario">
+        <div class="movil">
+          <div class="movil-pantalla" id="pantalla"></div>
+        </div>
+        <p class="pie-movil">
+          Toca el menú para cambiar de apartado. En el editor puedes cambiar cantidades y añadir
+          partidas: el total se recalcula.
+        </p>
+      </main>
+
+      <aside class="ficha">
+        <div id="ficha"></div>
+      </aside>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>
