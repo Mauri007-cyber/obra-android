@@ -1,20 +1,15 @@
 # Obra
 
-App Android para medir, presupuestar y ensenar una reforma. Coste 0 EUR, sin cuenta.
+App Android para medir y presupuestar reformas. El código completo de la app y del Worker todavía no está en este repositorio.
 
-**Estado 0.9.4**
+## Estado de distribución
 
-- Proyecto por estancias: catalogo de mas de 45 cambios por oficio, con aprobacion del cliente.
-- Recorrido final con solo lo aprobado.
-- IA opcional (Cloudflare Workers AI, FLUX.2 klein): apagada por defecto y sin claves en el APK.
-- APK firmada en la release v0.9.4.
+`update.json` apunta a la versión **0.9.2**. No hay una release v0.9.4 verificada aquí; no se debe anunciar como disponible hasta subir y comprobar el APK firmado y actualizar el manifiesto.
 
-**Documentacion**
+## Limitaciones importantes
 
-- PLAN-OBRA-COMPLETA.md: el replanteo del producto.
-- ROADMAP.md: hitos y estado.
-- worker/DESPLEGAR.md: desplegar el intermediario.
+El recorrido de la versión de desarrollo muestra fotos originales y cambios aprobados: aún no genera una imagen de la obra terminada. La exportación no es una copia restaurable completa y no incluye los archivos de fotos.
 
-**Actualizaciones**
+El Worker de desarrollo no autentica peticiones. Su contador no garantiza límites de gasto; no lo expongas ni actives servicios de pago hasta protegerlo. La guía `worker/DESPLEGAR.md` debe revisarse antes de usarla.
 
-La app consulta update.json, descarga el APK de la release, verifica el SHA-256 e instala encima.
+No se ha validado la app en un dispositivo real ni el modelo de IA desplegado. Las actualizaciones requieren la misma clave de firma y confirmación en Android.
