@@ -46,6 +46,8 @@ import es.obra.app.datos.HuecoEntity
 import es.obra.app.datos.MuroEntity
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
+import es.obra.app.datos.ProyectoRepositorio
+import es.obra.app.dominio.Proyecto
 import es.obra.app.dominio.Partida
 import es.obra.app.dominio.Presupuesto
 import es.obra.app.dominio.Tarifas
@@ -71,7 +73,10 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     var tarifas by remember { mutableStateOf(Tarifas.porDefecto) }
     var ajustando by remember { mutableStateOf(false) }
     var trabajando by remember { mutableStateOf(false) }
+    var errorPdf by remember { mutableStateOf<String?>(null) }
     var numeroEstancias by remember { mutableStateOf<Int?>(null) }
+    var proyecto by remember { mutableStateOf<Proyecto?>(null) }
+    var totalCambios by remember { mutableStateOf(0) }
 
     LaunchedEffect(obraId) {
         val guardada = dao.obtenerObra(obraId)
@@ -80,6 +85,8 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         val estancias = dao.estancias(obraId)
         muros = estancias.flatMap { dao.muros(it.id) }
         huecos = estancias.flatMap { dao.huecosDeEstancia(it.id) }
+        totalCambios = dao.cambios(obraId).size
+        proyecto = guardada?.let { ProyectoRepositorio.cargar(dao, it) }
         numeroEstancias = estancias.size
     }
 
@@ -92,9 +99,12 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     }
 
     val actual = obra
-    val permitido = numeroEstancias?.let {
+    val aprobado = proyecto?.let { Presupuesto.partidasAprobadas(it) }.orEmpty()
+    val usaAprobados = aprobado.isNotEmpty()
+    val cambiosDesconocidos = proyecto?.estancias?.sumOf { it.cambios.size }?.let { it < totalCambios } == true
+    val permitido = !cambiosDesconocidos && (usaAprobados || numeroEstancias?.let {
         Presupuesto.permiteCalculoHeredado(it, actual?.metodo.orEmpty(), muros.isNotEmpty())
-    } == true
+    } == true)
     val superficie = Presupuesto.suelo(muros, actual?.largo ?: 0.0, actual?.ancho ?: 0.0)
     val paredes = Presupuesto.paredes(
         muros,
@@ -103,14 +113,14 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         actual?.ancho ?: 0.0,
         actual?.altura ?: 2.5
     )
-    val partidas = if (permitido) Presupuesto.partidas(
+    val partidas = if (!permitido) emptyList() else if (usaAprobados) aprobado else Presupuesto.partidas(
         muros,
         huecos,
         superficie,
         paredes,
         tarifas,
         altura = actual?.altura ?: 2.5
-    ) else emptyList()
+    )
     val base = Presupuesto.base(partidas)
     val iva = Presupuesto.iva(base, tarifas)
     val total = Presupuesto.total(base, tarifas)
@@ -120,11 +130,16 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         if (trabajando || !permitido || partidas.isEmpty()) return
         trabajando = true
         alcance.launch {
-            val archivo = withContext(Dispatchers.IO) {
-                PdfPresupuesto.generar(contexto, guardada, partidas, tarifas, base, iva, total)
+            try {
+                val archivo = withContext(Dispatchers.IO) {
+                    PdfPresupuesto.generar(contexto, guardada, partidas, tarifas, base, iva, total)
+                }
+                if (!Exportador.compartir(contexto, archivo, tipo = "application/pdf")) errorPdf = "No se pudo abrir el menú para compartir."
+            } catch (error: Exception) {
+                errorPdf = error.message ?: "No se pudo crear el PDF."
+            } finally {
+                trabajando = false
             }
-            trabajando = false
-            Exportador.compartir(contexto, archivo, tipo = "application/pdf")
         }
     }
 
@@ -157,16 +172,17 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
                 .verticalScroll(rememberScrollState())
         ) {
             Spacer(Modifier.height(8.dp))
+            errorPdf?.let { Text(it, color = Tinta.rojo) }
 
             if (partidas.isEmpty()) {
                 Text(
-                    if (numeroEstancias == null) "Cargando medidas…" else if (!permitido) "El presupuesto automático no admite varias estancias ni planos anteriores a una medición manual o de cámara. Revisa las medidas y los cambios manualmente; no se genera un PDF incompleto." else "Todavía no hay nada que presupuestar. Mide la estancia y dibuja el plano; las partidas salen solas de ahí.",
+                    if (numeroEstancias == null) "Cargando medidas…" else if (cambiosDesconocidos) "Esta obra contiene partidas que ya no están en el catálogo. No se puede calcular un presupuesto completo sin revisarlas." else if (!permitido) "El presupuesto automático no admite varias estancias ni planos anteriores a una medición manual o de cámara. Revisa las medidas y los cambios manualmente; no se genera un PDF incompleto." else "Todavía no hay nada que presupuestar. Mide la estancia y dibuja el plano; las partidas salen solas de ahí.",
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(Modifier.height(16.dp))
             } else {
                 Text(
-                    "Lo que va a costar",
+                    if (usaAprobados) "Cambios aprobados por estancia" else "Estimación orientativa",
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Spacer(Modifier.height(12.dp))

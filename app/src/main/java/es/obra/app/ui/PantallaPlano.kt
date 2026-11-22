@@ -85,6 +85,7 @@ import kotlin.math.sin
 fun PantallaPlano(
     obraId: Long,
     dao: ObraDao,
+    estanciaSeleccionadaId: Long? = null,
     alVolver: () -> Unit,
     alAplicar: (largo: Double, ancho: Double, superficie: Double) -> Unit
 ) {
@@ -103,8 +104,12 @@ fun PantallaPlano(
 
     LaunchedEffect(obraId) {
         val estancias = dao.estancias(obraId)
-        val id = estancias.firstOrNull()?.id
-            ?: dao.insertarEstancia(EstanciaEntity(obraId = obraId, nombre = "Estancia"))
+        val id = if (estanciaSeleccionadaId != null) {
+            estancias.firstOrNull { it.id == estanciaSeleccionadaId }?.id
+        } else {
+            estancias.firstOrNull()?.id ?: dao.insertarEstancia(EstanciaEntity(obraId = obraId, nombre = "Estancia"))
+        }
+        if (id == null) { cargando = false; return@LaunchedEffect }
         estanciaId = id
         muros = dao.muros(id)
         huecos = dao.huecosDeEstancia(id)
@@ -506,9 +511,10 @@ fun PantallaPlano(
                             )
                             val largo = (rect.right - rect.left).toDouble()
                             val ancho = (rect.bottom - rect.top).toDouble()
-                            alAplicar(largo, ancho, superficie ?: (largo * ancho))
+                            val areaCerrada = superficie ?: return@Button
+                            alAplicar(largo, ancho, areaCerrada)
                         },
-                        enabled = muros.isNotEmpty(),
+                        enabled = superficie != null && superficie > 0.0,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(60.dp)
@@ -521,7 +527,7 @@ fun PantallaPlano(
                         if (superficie != null) {
                             "El contorno cierra: la superficie es la real. Largo y ancho salen del rectángulo que lo envuelve."
                         } else {
-                            "Falta cerrar el contorno: se usará el rectángulo que envuelve los muros."
+                            "Cierra el contorno antes de usar la superficie. Comprueba las medidas en obra."
                         },
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant

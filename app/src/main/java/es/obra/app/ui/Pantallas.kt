@@ -1,5 +1,7 @@
 package es.obra.app.ui
 
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -58,6 +60,7 @@ import es.obra.app.actualizacion.Actualizador
 import es.obra.app.actualizacion.EstadoActualizacion
 import es.obra.app.ar.ArDisponible
 import es.obra.app.ar.EstadoAr
+import es.obra.app.datos.CopiaObra
 import es.obra.app.datos.Exportador
 import es.obra.app.datos.HuecoEntity
 import es.obra.app.datos.MuroEntity
@@ -78,7 +81,7 @@ sealed interface Pantalla {
     data class Obra(val id: Long) : Pantalla
     data class Medir(val id: Long) : Pantalla
     data class Escanear(val id: Long) : Pantalla
-    data class Plano(val id: Long) : Pantalla
+    data class Plano(val id: Long, val estanciaId: Long? = null) : Pantalla
     data class Visual(val id: Long) : Pantalla
     data class Presupuesto(val id: Long) : Pantalla
     data class Retoque(val id: Long, val estanciaId: Long? = null) : Pantalla
@@ -137,10 +140,13 @@ fun AppObra() {
         is Pantalla.Plano -> PantallaPlano(
             obraId = actual.id,
             dao = dao,
-            alVolver = { pantalla = Pantalla.Obra(actual.id) },
+            estanciaSeleccionadaId = actual.estanciaId,
+            alVolver = { pantalla = if (actual.estanciaId == null) Pantalla.Obra(actual.id) else Pantalla.ObraFinal(actual.id) },
             alAplicar = { largo, ancho, superficie ->
                 alcance.launch {
-                    dao.obtenerObra(actual.id)?.let { obra ->
+                    if (actual.estanciaId != null) {
+                        dao.guardarSuperficieEstancia(actual.id, actual.estanciaId, superficie)
+                    } else dao.obtenerObra(actual.id)?.let { obra ->
                         dao.actualizarObra(
                             obra.copy(
                                 largo = largo,
@@ -150,7 +156,7 @@ fun AppObra() {
                             )
                         )
                     }
-                    pantalla = Pantalla.Obra(actual.id)
+                    pantalla = if (actual.estanciaId == null) Pantalla.Obra(actual.id) else Pantalla.ObraFinal(actual.id)
                 }
             }
         )
@@ -178,7 +184,8 @@ fun AppObra() {
             obraId = actual.id,
             dao = dao,
             alVolver = { pantalla = Pantalla.Obra(actual.id) },
-            alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) }
+            alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) },
+            alPlano = { estanciaId -> pantalla = Pantalla.Plano(actual.id, estanciaId) }
         )
 
         is Pantalla.Medir -> PantallaMedir(
@@ -213,6 +220,19 @@ fun PantallaInicio(
     alActualizar: () -> Unit
 ) {
     val obras by dao.observarObras().collectAsStateWithLifecycle(initialValue = emptyList())
+    val contexto = LocalContext.current
+    val alcance = rememberCoroutineScope()
+    var avisoCopia by remember { mutableStateOf<String?>(null) }
+    val importar = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
+        if (uri != null) alcance.launch {
+            try {
+                val id = CopiaObra.importar(contexto, dao, uri)
+                alAbrir(id)
+            } catch (error: Exception) {
+                avisoCopia = "No se pudo restaurar: ${error.message ?: "copia inválida"}. No se han sobrescrito obras."
+            }
+        }
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -243,6 +263,8 @@ fun PantallaInicio(
         if (hayVersion) {
             BannerVersion(alPulsar = alActualizar)
         }
+        OutlinedButton(onClick = { importar.launch(arrayOf("application/zip", "application/octet-stream", "*/*")) }, modifier = Modifier.fillMaxWidth().padding(horizontal = 20.dp)) { Text("Restaurar copia de una obra") }
+        avisoCopia?.let { Text(it, modifier = Modifier.padding(20.dp), color = Tinta.rojo) }
         if (obras.isEmpty()) {
             Column(
                 modifier = Modifier
@@ -514,6 +536,18 @@ private fun ContenidoObra(
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
+    var avisoCopia by remember { mutableStateOf<String?>(null) }
+    val guardarCopia = rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("application/zip")) { uri ->
+        if (uri != null) alcance.launch {
+            try {
+                val salida = contexto.contentResolver.openOutputStream(uri) ?: error("No se pudo abrir el destino")
+                CopiaObra.exportar(contexto, dao, obra.id, salida)
+                avisoCopia = "Copia guardada con las fotos de las estancias."
+            } catch (error: Exception) {
+                avisoCopia = "No se pudo guardar la copia: ${error.message ?: "error de escritura"}. Descarta el archivo incompleto."
+            }
+        }
+    }
 
     var largo by remember(obra.id) { mutableStateOf(cifra(obra.largo)) }
     var ancho by remember(obra.id) { mutableStateOf(cifra(obra.ancho)) }
@@ -751,6 +785,10 @@ private fun ContenidoObra(
         ) {
             Text("Exportar datos (.obra, sin fotos)")
         }
+        OutlinedButton(onClick = { guardarCopia.launch("obra-${obra.id}.zip") }, modifier = Modifier.fillMaxWidth()) {
+            Text("Guardar copia con fotos")
+        }
+        avisoCopia?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
         Text(
             "La exportación no incluye fotos y todavía no se puede restaurar en la app; no es una copia de seguridad completa.",

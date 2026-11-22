@@ -68,6 +68,18 @@ object Presupuesto {
     fun permiteCalculoHeredado(numeroEstancias: Int, metodo: String, hayMuros: Boolean): Boolean =
         numeroEstancias <= 1 && (!hayMuros || metodo == "plano")
 
+    /** Solo trabajos aprobados; cada línea conserva el nombre de su estancia. */
+    fun partidasAprobadas(proyecto: Proyecto): List<Partida> = proyecto.estancias.flatMap { estancia ->
+        estancia.aprobados.map { cambio ->
+            Partida(
+                concepto = "${estancia.nombre}: ${cambio.tipo.nombre}",
+                cantidad = if (cambio.tipo.unidad == Unidad.GLOBAL) 1.0 else cambio.cantidad,
+                unidad = cambio.tipo.unidad.etiqueta,
+                precio = cambio.precio
+            )
+        }
+    }
+
     /** Superficie del suelo: la del contorno si cierra, si no largo × ancho. */
     fun suelo(muros: List<MuroEntity>, largo: Double, ancho: Double): Double =
         Poligono.superficie(muros) ?: (largo * ancho)
