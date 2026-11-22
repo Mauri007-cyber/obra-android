@@ -68,6 +68,13 @@ object Presupuesto {
     fun permiteCalculoHeredado(numeroEstancias: Int, metodo: String, hayMuros: Boolean): Boolean =
         numeroEstancias <= 1 && (!hayMuros || metodo == "plano")
 
+    /** Impide presentar importes incompletos como un presupuesto terminado. */
+    fun aprobadosValidos(proyecto: Proyecto): Boolean = proyecto.aprobados.all { cambio ->
+        cambio.precio.isFinite() && cambio.precio > 0.0 &&
+            (cambio.tipo.unidad == Unidad.GLOBAL || (cambio.cantidad.isFinite() && cambio.cantidad > 0.0)) &&
+            cambio.importe.isFinite()
+    }
+
     /** Solo trabajos aprobados; cada línea conserva el nombre de su estancia. */
     fun partidasAprobadas(proyecto: Proyecto): List<Partida> = proyecto.estancias.flatMap { estancia ->
         estancia.aprobados.map { cambio ->

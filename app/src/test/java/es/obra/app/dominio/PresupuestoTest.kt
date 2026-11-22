@@ -51,6 +51,17 @@ class PresupuestoTest {
     }
 
     @Test
+    fun `no se considera completo un presupuesto con cantidades o precios invalidos`() {
+        val cambio = Cambio(tipo = TipoCambio.SUELO_LAMINADO, cantidad = 10.0, precioPropio = 2.0, estado = EstadoCambio.APROBADO)
+        fun proyecto(c: Cambio) = Proyecto("Casa", listOf(EstanciaProyecto(1, "Salón", cambios = listOf(c))))
+        assertTrue(Presupuesto.aprobadosValidos(proyecto(cambio)))
+        assertFalse(Presupuesto.aprobadosValidos(proyecto(cambio.copy(cantidad = 0.0))))
+        assertFalse(Presupuesto.aprobadosValidos(proyecto(cambio.copy(precioPropio = 0.0))))
+        assertFalse(Presupuesto.aprobadosValidos(proyecto(cambio.copy(cantidad = Double.NaN))))
+        assertTrue(Presupuesto.aprobadosValidos(proyecto(cambio.copy(cantidad = 0.0, estado = EstadoCambio.PROPUESTO))))
+    }
+
+    @Test
     fun `las partidas salen de lo dibujado`() {
         val partidas = Presupuesto.partidas(muros, huecos, 12.0, 30.0, Tarifas.porDefecto)
 
