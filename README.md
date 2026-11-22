@@ -43,10 +43,10 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 
 ## Limitaciones importantes
 
-- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Las reglas de copia incluyen fotos, pero no se ha probado la restauración real y Android puede limitar las copias por tamaño o configuración.
+- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Una prueba instrumentada ejecutada en emulador Android ejercita la restauración con una foto de prueba; faltan pruebas entre dispositivos y de la interfaz.
 - Cada estancia permite editar su superficie, altura y plano. El presupuesto incluye únicamente cambios aprobados por estancia y exige cantidades y precios válidos; sin aprobaciones no genera partidas. Hay que comprobar las medidas y los precios en obra.
 - La APK de depuración usa el identificador `es.obra.app.prueba`: se instala como una app distinta, sin acceso a los datos ni a las actualizaciones de la versión normal.
-- Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. La lectura comprueba la integridad del ZIP y que las fotos puedan decodificarse, pero todavía no se ha ejecutado la prueba instrumentada ni probado la restauración entre dispositivos con datos reales. No borres los originales basándote en esta copia. La exportación antigua `.obra` sigue sin fotos y no es restaurable.
+- Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. La lectura comprueba la integridad del ZIP y que las fotos puedan decodificarse. Una prueba instrumentada ha pasado en emulador Android con datos de prueba; no se ha probado la restauración entre dispositivos con datos reales. No borres los originales basándote en esta copia. La exportación antigua `.obra` sigue sin fotos y no es restaurable.
 - Las llamadas de pago del Worker están bloqueadas en el código local. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla; aún faltan autenticación y límites fiables.
 - El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.
 
@@ -57,7 +57,7 @@ Las llamadas de pago están desactivadas; consulta [worker/DESPLEGAR.md](worker/
 ## Pruebas
 
 ```bash
-node --test worker/prueba.mjs worker/prueba-handler.mjs worker/prueba-fondo.mjs
+npm --prefix worker test
 scripts/build.sh :app:testDebugUnitTest
 scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositivo conectado
 ```
