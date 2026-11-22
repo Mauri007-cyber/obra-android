@@ -51,6 +51,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            // La APK de pruebas convive con la app instalada y no sustituye sus datos.
+            applicationIdSuffix = ".prueba"
+            versionNameSuffix = "-prueba"
+        }
         release {
             isMinifyEnabled = false
             isShrinkResources = false

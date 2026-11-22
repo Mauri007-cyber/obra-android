@@ -71,6 +71,7 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     var tarifas by remember { mutableStateOf(Tarifas.porDefecto) }
     var ajustando by remember { mutableStateOf(false) }
     var trabajando by remember { mutableStateOf(false) }
+    var numeroEstancias by remember { mutableStateOf<Int?>(null) }
 
     LaunchedEffect(obraId) {
         val guardada = dao.obtenerObra(obraId)
@@ -79,6 +80,7 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         val estancias = dao.estancias(obraId)
         muros = estancias.flatMap { dao.muros(it.id) }
         huecos = estancias.flatMap { dao.huecosDeEstancia(it.id) }
+        numeroEstancias = estancias.size
     }
 
     LaunchedEffect(obraId, tarifas) {
@@ -90,6 +92,9 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     }
 
     val actual = obra
+    val permitido = numeroEstancias?.let {
+        Presupuesto.permiteCalculoHeredado(it, actual?.metodo.orEmpty(), muros.isNotEmpty())
+    } == true
     val superficie = Presupuesto.suelo(muros, actual?.largo ?: 0.0, actual?.ancho ?: 0.0)
     val paredes = Presupuesto.paredes(
         muros,
@@ -98,21 +103,21 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         actual?.ancho ?: 0.0,
         actual?.altura ?: 2.5
     )
-    val partidas = Presupuesto.partidas(
+    val partidas = if (permitido) Presupuesto.partidas(
         muros,
         huecos,
         superficie,
         paredes,
         tarifas,
         altura = actual?.altura ?: 2.5
-    )
+    ) else emptyList()
     val base = Presupuesto.base(partidas)
     val iva = Presupuesto.iva(base, tarifas)
     val total = Presupuesto.total(base, tarifas)
 
     fun compartir() {
         val guardada = obra ?: return
-        if (trabajando) return
+        if (trabajando || !permitido || partidas.isEmpty()) return
         trabajando = true
         alcance.launch {
             val archivo = withContext(Dispatchers.IO) {
@@ -134,7 +139,7 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
                     }
                 },
                 actions = {
-                    IconButton(onClick = { compartir() }, enabled = !trabajando) {
+                    IconButton(onClick = { compartir() }, enabled = !trabajando && permitido && partidas.isNotEmpty()) {
                         Icon(Icons.Filled.Share, contentDescription = "Compartir presupuesto")
                     }
                 },
@@ -155,8 +160,7 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
 
             if (partidas.isEmpty()) {
                 Text(
-                    "Todavía no hay nada que presupuestar. Mide la estancia y dibuja el plano; " +
-                        "las partidas salen solas de ahí.",
+                    if (numeroEstancias == null) "Cargando medidas…" else if (!permitido) "El presupuesto automático no admite varias estancias ni planos anteriores a una medición manual o de cámara. Revisa las medidas y los cambios manualmente; no se genera un PDF incompleto." else "Todavía no hay nada que presupuestar. Mide la estancia y dibuja el plano; las partidas salen solas de ahí.",
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(Modifier.height(16.dp))

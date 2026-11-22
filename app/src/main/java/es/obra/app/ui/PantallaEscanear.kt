@@ -191,13 +191,8 @@ fun PantallaEscanear(
                     alAplicar = { largo, ancho, nuevoFactor ->
                         alcance.launch {
                             dao.obtenerObra(obraId)?.let { obra ->
-                                dao.actualizarObra(
-                                    obra.copy(
-                                        largo = largo,
-                                        ancho = if (ancho > 0.0) ancho else obra.ancho,
-                                        metodo = "arcore",
-                                        factorCalibracion = nuevoFactor
-                                    )
+                                dao.guardarMedidasAr(
+                                    obra.id, largo, if (ancho > 0.0) ancho else obra.ancho, nuevoFactor
                                 )
                             }
                             alTerminar()
@@ -459,7 +454,7 @@ private fun VistaAr(factorInicial: Double, alAplicar: (Double, Double, Double) -
 
             Spacer(Modifier.height(6.dp))
             Text(
-                "Precisión aproximada ±3 %. No es un medidor certificado.",
+                "Medición orientativa: verifica las medidas en obra. No es un medidor certificado.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = Color.White.copy(alpha = 0.65f)
             )

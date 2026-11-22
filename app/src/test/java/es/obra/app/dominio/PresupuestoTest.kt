@@ -3,6 +3,8 @@ package es.obra.app.dominio
 import es.obra.app.datos.HuecoEntity
 import es.obra.app.datos.MuroEntity
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class PresupuestoTest {
@@ -24,6 +26,15 @@ class PresupuestoTest {
     private val huecos = listOf(
         HuecoEntity(muroId = 2, posicion = 0.5, ancho = 0.8, alto = 2.05, tipo = "puerta")
     )
+
+    @Test
+    fun `el presupuesto heredado no se usa con varias estancias`() {
+        assertTrue(Presupuesto.permiteCalculoHeredado(0, "manual", false))
+        assertTrue(Presupuesto.permiteCalculoHeredado(1, "plano", true))
+        assertFalse(Presupuesto.permiteCalculoHeredado(2, "plano", true))
+        assertFalse(Presupuesto.permiteCalculoHeredado(1, "manual", true))
+        assertFalse(Presupuesto.permiteCalculoHeredado(1, "arcore", true))
+    }
 
     @Test
     fun `las partidas salen de lo dibujado`() {

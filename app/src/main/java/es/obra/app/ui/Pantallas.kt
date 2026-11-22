@@ -518,6 +518,7 @@ private fun ContenidoObra(
     var largo by remember(obra.id) { mutableStateOf(cifra(obra.largo)) }
     var ancho by remember(obra.id) { mutableStateOf(cifra(obra.ancho)) }
     var altura by remember(obra.id) { mutableStateOf(cifra(obra.altura)) }
+    var medidasEditadas by remember(obra.id) { mutableStateOf(false) }
 
     var muros by remember { mutableStateOf<List<MuroEntity>>(emptyList()) }
     var huecos by remember { mutableStateOf<List<HuecoEntity>>(emptyList()) }
@@ -532,7 +533,9 @@ private fun ContenidoObra(
     val a = Geometria.parsear(ancho)
     val h = Geometria.parsear(altura)
 
-    val superficie = Poligono.superficie(muros) ?: (l * a)
+    val superficie = if (obra.metodo == "plano" && l == obra.largo && a == obra.ancho) {
+        Poligono.superficie(muros) ?: (l * a)
+    } else l * a
     val perimetro = Poligono.perimetro(muros) ?: (2 * (l + a))
     val paredesBrutas = if (muros.isNotEmpty()) {
         muros.filter { it.estado != "tirado" }.sumOf { Poligono.longitud(it) * h }
@@ -545,12 +548,14 @@ private fun ContenidoObra(
     val cajas = Geometria.cajasAzulejo(superficie, merma = 0.10, m2Caja = 1.44)
 
     // Guardado con retardo: escribir no debe escribir en disco en cada tecla.
-    LaunchedEffect(obra.id, l, a, h) {
+    LaunchedEffect(obra.id, l, a, h, medidasEditadas) {
+        if (!medidasEditadas) return@LaunchedEffect
         kotlinx.coroutines.delay(500)
         val alturaFinal = if (h > 0.0) h else 2.5
         if (l != obra.largo || a != obra.ancho || alturaFinal != obra.altura) {
-            dao.actualizarObra(obra.copy(largo = l, ancho = a, altura = alturaFinal))
+            dao.guardarMedidasManuales(obra.id, l, a, alturaFinal)
         }
+        medidasEditadas = false
     }
 
     Column(
@@ -566,21 +571,21 @@ private fun ContenidoObra(
             etiqueta = "Largo",
             valor = largo,
             modifier = Modifier.fillMaxWidth(),
-            alCambiar = { largo = it }
+            alCambiar = { largo = it; medidasEditadas = true }
         )
         Spacer(Modifier.height(10.dp))
         CampoNumero(
             etiqueta = "Ancho",
             valor = ancho,
             modifier = Modifier.fillMaxWidth(),
-            alCambiar = { ancho = it }
+            alCambiar = { ancho = it; medidasEditadas = true }
         )
         Spacer(Modifier.height(10.dp))
         CampoNumero(
             etiqueta = "Alto de la pared",
             valor = altura,
             modifier = Modifier.fillMaxWidth(),
-            alCambiar = { altura = it }
+            alCambiar = { altura = it; medidasEditadas = true }
         )
         Spacer(Modifier.height(6.dp))
         Text(
