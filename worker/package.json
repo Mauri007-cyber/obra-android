@@ -1,0 +1,13 @@
+{
+  "name": "obra-ia",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "wrangler dev",
+    "deploy": "wrangler deploy",
+    "test": "node --test prueba.mjs prueba-handler.mjs prueba-fondo.mjs"
+  },
+  "devDependencies": {
+    "wrangler": "^4.0.0"
+  }
+}

@@ -1,46 +1,16 @@
-# Desplegar el intermediario (Cloudflare Workers)
+# Intermediario de IA: estado y seguridad
 
-La app no lleva claves: llama al Worker, y el Worker usa tu cuenta de Cloudflare (gratis).
+Las rutas que podrían consumir Cloudflare Workers AI o ApyHub están **bloqueadas en el código actual** hasta implementar autenticación y un control global y atómico de gasto. Aunque configures `APY_TOKEN` o cambies `SIMULADO`, no se activan. Con `SIMULADO=1`, `/retoque` devuelve la imagen original; no es una generación real.
 
-## Requisitos
+**Si ya publicaste una versión anterior, sigue siendo vulnerable:** este cambio local no la actualiza ni la detiene. Desactiva ese Worker desde Cloudflare hasta poder desplegar una versión protegida. No añadas secretos a la versión anterior.
 
-- Node.js 20 o superior. Con 18 o menos, Wrangler no arranca.
-- Cuenta de Cloudflare.
+Antes de volver a ofrecer generación real se necesita, como mínimo:
 
-## Windows
+- Identificar y autorizar a los usuarios sin incluir credenciales privadas en el APK.
+- Limitar de forma global y atómica todas las llamadas que puedan gastar, incluidas las fallidas y concurrentes, y revisar los límites y precios actuales del proveedor.
+- Probar los controles frente a abuso y fallos, y comprobar el servicio real en Cloudflare.
+- Revisar consentimiento y protección de fotos y datos de clientes.
 
-1. Descomprime el ZIP en una carpeta normal, por ejemplo C:\obra-worker.
-2. Doble clic en desplegar.cmd.
-3. Pulsa Allow en el navegador.
-4. Copia la direccion https://obra-ia.TU-USUARIO.workers.dev y pegala en la app:
-   Ajustes de IA -> Direccion del intermediario.
+Nada de esto garantiza uso gratuito ilimitado. La generación fotorrealista todavía no está disponible ni validada para uso final.
 
-El script no hace npm install: usa npx wrangler@4, que era el paso que mas fallaba.
-
-## Probar
-
-Abre (direccion)/salud. Debe contestar {"ok":true,...}.
-Si sale simulado:true, el Worker no ve el modelo: revisa el bloque ai de wrangler.jsonc.
-
-## Si falla
-
-No cierres la ventana: se abre despliegue.log con el error exacto. Causas conocidas:
-
-- workers.dev subdomain: la cuenta aun no tiene subdominio. Crealo en el panel y repite.
-- not authenticated / 10000: sesion no valida. Repite el login.
-- EBADENGINE: Node viejo. Instala Node 20+.
-- EACCES / EPERM: carpeta sin permisos. Muevela fuera de Program Files.
-- ENOTFOUND / ETIMEDOUT: sin red o cortafuegos.
-
-Si el navegador no se abre: npx wrangler@4 login --browser=false
-
-## Limite del modelo
-
-FLUX.2 klein solo acepta fotos de entrada menores de 512x512. La app las reduce desde la 0.9.4
-y el Worker rechaza con un aviso claro las que se pasen.
-
-## Ajustes
-
-- MAX_DIA: imagenes por dispositivo y dia (30).
-- MODELO: @cf/black-forest-labs/flux-2-klein-4b
-- SIMULADO: "1" devuelve la misma foto sin gastar cupo.
+El script `desplegar.cmd` es una herramienta anterior sin validar en Windows. Si falla, conserva `despliegue.log` para diagnosticarlo; no lo uses como prueba de que el servicio funciona o está protegido.

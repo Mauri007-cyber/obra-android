@@ -1,0 +1,15 @@
+{
+  // Proxy de IA de Obra. La clave de Cloudflare no va aquí: el binding AI la pone sola.
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "obra-ia",
+  "main": "src/index.js",
+  "compatibility_date": "2026-11-01",
+  "observability": { "enabled": true },
+  "ai": { "binding": "AI" },
+  "vars": {
+    // FLUX.2 [klein] 4B: 4 pasos, hasta 4 imágenes de entrada, edición con prompt.
+    "MODELO": "@cf/black-forest-labs/flux-2-klein-4b",
+    // 1 = no llama al modelo y devuelve la misma foto. Sirve para probar la app sin gastar cupo.
+    "SIMULADO": "1"
+  }
+}
