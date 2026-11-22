@@ -170,6 +170,9 @@ interface ObraDao {
     @Update
     suspend fun actualizarObra(obra: ObraEntity)
 
+    @Query("UPDATE obras SET tarifas = :tarifas WHERE id = :id")
+    suspend fun guardarTarifas(id: Long, tarifas: String)
+
     @Query("UPDATE obras SET largo = :largo, ancho = :ancho, altura = :altura, superficieCerrada = CASE WHEN largo != :largo OR ancho != :ancho THEN 0 ELSE superficieCerrada END, metodo = CASE WHEN largo != :largo OR ancho != :ancho THEN 'manual' ELSE metodo END WHERE id = :id")
     suspend fun guardarMedidasManuales(id: Long, largo: Double, ancho: Double, altura: Double)
 

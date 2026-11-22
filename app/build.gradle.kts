@@ -19,6 +19,7 @@ android {
         applicationId = "es.obra.app"
         minSdk = 26
         targetSdk = 36
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
 
         // Solo ARM en la release normal. Con -Puniversal=true se incluye x86_64,
         // que es lo que exige el emulador para poder probar ARCore.
@@ -107,6 +108,9 @@ dependencies {
     implementation("com.google.ar:core:1.45.0")
 
     testImplementation("junit:junit:4.13.2")
+    androidTestImplementation("androidx.test:runner:1.6.2")
+    androidTestImplementation("androidx.test:core:1.6.1")
+    androidTestImplementation("androidx.test.ext:junit:1.2.1")
 
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

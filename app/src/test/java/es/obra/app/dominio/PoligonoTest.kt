@@ -47,6 +47,17 @@ class PoligonoTest {
     }
 
     @Test
+    fun `un contorno que se cruza no da superficie`() {
+        val muros = listOf(
+            muro(0.0, 0.0, 4.0, 3.0),
+            muro(4.0, 3.0, 0.0, 3.0),
+            muro(0.0, 3.0, 3.0, 0.0),
+            muro(3.0, 0.0, 0.0, 0.0)
+        )
+        assertNull(Poligono.superficie(muros))
+    }
+
+    @Test
     fun `un contorno abierto no da superficie`() {
         val muros = listOf(
             muro(0.0, 0.0, 2.0, 0.0),

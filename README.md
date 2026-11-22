@@ -44,9 +44,9 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 ## Limitaciones importantes
 
 - No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Las reglas de copia incluyen fotos, pero no se ha probado la restauración real y Android puede limitar las copias por tamaño o configuración.
-- Cada estancia permite editar su superficie, altura y plano. El presupuesto muestra los cambios aprobados por estancia; el cálculo heredado sigue limitado cuando no hay partidas aprobadas. Hay que comprobar cantidades, precios y medidas en obra.
+- Cada estancia permite editar su superficie, altura y plano. El presupuesto incluye únicamente cambios aprobados por estancia y exige cantidades y precios válidos; sin aprobaciones no genera partidas. Hay que comprobar las medidas y los precios en obra.
 - La APK de depuración usa el identificador `es.obra.app.prueba`: se instala como una app distinta, sin acceso a los datos ni a las actualizaciones de la versión normal.
-- Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. No se ha probado todavía la restauración entre dispositivos ni con datos reales; la exportación antigua `.obra` sigue sin fotos y no es restaurable.
+- Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. La lectura comprueba la integridad del ZIP y que las fotos puedan decodificarse, pero todavía no se ha ejecutado la prueba instrumentada ni probado la restauración entre dispositivos con datos reales. No borres los originales basándote en esta copia. La exportación antigua `.obra` sigue sin fotos y no es restaurable.
 - Las llamadas de pago del Worker están bloqueadas en el código local. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla; aún faltan autenticación y límites fiables.
 - El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.
 
@@ -59,4 +59,5 @@ Las llamadas de pago están desactivadas; consulta [worker/DESPLEGAR.md](worker/
 ```bash
 node --test worker/prueba.mjs worker/prueba-handler.mjs worker/prueba-fondo.mjs
 scripts/build.sh :app:testDebugUnitTest
+scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositivo conectado
 ```

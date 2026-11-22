@@ -42,8 +42,6 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import es.obra.app.datos.Exportador
-import es.obra.app.datos.HuecoEntity
-import es.obra.app.datos.MuroEntity
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
 import es.obra.app.datos.ProyectoRepositorio
@@ -68,8 +66,6 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     val alcance = rememberCoroutineScope()
 
     var obra by remember { mutableStateOf<ObraEntity?>(null) }
-    var muros by remember { mutableStateOf<List<MuroEntity>>(emptyList()) }
-    var huecos by remember { mutableStateOf<List<HuecoEntity>>(emptyList()) }
     var tarifas by remember { mutableStateOf(Tarifas.porDefecto) }
     var ajustando by remember { mutableStateOf(false) }
     var trabajando by remember { mutableStateOf(false) }
@@ -83,8 +79,6 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         obra = guardada
         tarifas = Tarifas.desdeTexto(guardada?.tarifas ?: "")
         val estancias = dao.estancias(obraId)
-        muros = estancias.flatMap { dao.muros(it.id) }
-        huecos = estancias.flatMap { dao.huecosDeEstancia(it.id) }
         totalCambios = dao.cambios(obraId).size
         proyecto = guardada?.let { ProyectoRepositorio.cargar(dao, it) }
         numeroEstancias = estancias.size
@@ -94,33 +88,15 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         delay(700)
         val guardada = obra ?: return@LaunchedEffect
         if (Tarifas.desdeTexto(guardada.tarifas) != tarifas) {
-            dao.actualizarObra(guardada.copy(tarifas = tarifas.aTexto()))
+            dao.guardarTarifas(guardada.id, tarifas.aTexto())
         }
     }
 
-    val actual = obra
     val aprobado = proyecto?.let { Presupuesto.partidasAprobadas(it) }.orEmpty()
-    val usaAprobados = aprobado.isNotEmpty()
     val cambiosDesconocidos = proyecto?.estancias?.sumOf { it.cambios.size }?.let { it < totalCambios } == true
-    val permitido = !cambiosDesconocidos && (usaAprobados || numeroEstancias?.let {
-        Presupuesto.permiteCalculoHeredado(it, actual?.metodo.orEmpty(), muros.isNotEmpty())
-    } == true)
-    val superficie = Presupuesto.suelo(muros, actual?.largo ?: 0.0, actual?.ancho ?: 0.0)
-    val paredes = Presupuesto.paredes(
-        muros,
-        huecos,
-        actual?.largo ?: 0.0,
-        actual?.ancho ?: 0.0,
-        actual?.altura ?: 2.5
-    )
-    val partidas = if (!permitido) emptyList() else if (usaAprobados) aprobado else Presupuesto.partidas(
-        muros,
-        huecos,
-        superficie,
-        paredes,
-        tarifas,
-        altura = actual?.altura ?: 2.5
-    )
+    val valoresInvalidos = proyecto?.let { !Presupuesto.aprobadosValidos(it) } == true
+    val permitido = numeroEstancias != null && !cambiosDesconocidos && !valoresInvalidos
+    val partidas = if (permitido) aprobado else emptyList()
     val base = Presupuesto.base(partidas)
     val iva = Presupuesto.iva(base, tarifas)
     val total = Presupuesto.total(base, tarifas)
@@ -176,13 +152,13 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
 
             if (partidas.isEmpty()) {
                 Text(
-                    if (numeroEstancias == null) "Cargando medidas…" else if (cambiosDesconocidos) "Esta obra contiene partidas que ya no están en el catálogo. No se puede calcular un presupuesto completo sin revisarlas." else if (!permitido) "El presupuesto automático no admite varias estancias ni planos anteriores a una medición manual o de cámara. Revisa las medidas y los cambios manualmente; no se genera un PDF incompleto." else "Todavía no hay nada que presupuestar. Mide la estancia y dibuja el plano; las partidas salen solas de ahí.",
+                    if (numeroEstancias == null) "Cargando medidas…" else if (cambiosDesconocidos) "Esta obra contiene partidas que ya no están en el catálogo. No se puede calcular un presupuesto completo sin revisarlas." else if (valoresInvalidos) "Revisa los trabajos aprobados: cada uno necesita un precio y una cantidad válidos antes de generar el presupuesto." else "Todavía no hay trabajos aprobados. Aprueba los cambios que quieras incluir en cada estancia.",
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(Modifier.height(16.dp))
             } else {
                 Text(
-                    if (usaAprobados) "Cambios aprobados por estancia" else "Estimación orientativa",
+                    "Cambios aprobados por estancia",
                     style = MaterialTheme.typography.headlineMedium
                 )
                 Spacer(Modifier.height(12.dp))
@@ -242,34 +218,10 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
 
             if (ajustando) {
                 Text(
-                    "Precios con la mano de obra incluida. Cámbialos y se guardan en esta obra.",
+                    "Para los trabajos aprobados, ajusta cada precio en su estancia. Aquí puedes modificar el IVA.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(Modifier.height(8.dp))
-                CampoPrecio("Tabique nuevo (€/m²)", tarifas.tabiqueNuevo) {
-                    tarifas = tarifas.copy(tabiqueNuevo = it)
-                }
-                Spacer(Modifier.height(8.dp))
-                CampoPrecio("Demolición (€/m²)", tarifas.demolicion) {
-                    tarifas = tarifas.copy(demolicion = it)
-                }
-                Spacer(Modifier.height(8.dp))
-                CampoPrecio("Suelo (€/m²)", tarifas.suelo) {
-                    tarifas = tarifas.copy(suelo = it)
-                }
-                Spacer(Modifier.height(8.dp))
-                CampoPrecio("Pintura (€/m²)", tarifas.pintura) {
-                    tarifas = tarifas.copy(pintura = it)
-                }
-                Spacer(Modifier.height(8.dp))
-                CampoPrecio("Puerta (€/ud)", tarifas.puerta) {
-                    tarifas = tarifas.copy(puerta = it)
-                }
-                Spacer(Modifier.height(8.dp))
-                CampoPrecio("Ventana (€/ud)", tarifas.ventana) {
-                    tarifas = tarifas.copy(ventana = it)
-                }
                 Spacer(Modifier.height(8.dp))
                 CampoPrecio("IVA (%)", tarifas.iva) {
                     tarifas = tarifas.copy(iva = it.coerceIn(0.0, 30.0))

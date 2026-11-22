@@ -61,7 +61,24 @@ object Poligono {
         // Si sobra algún muro, no es un contorno simple: mejor no dar superficie que darla mal.
         if (usadas.any { !it }) return null
 
-        return orden.map { nodos[it] }
+        val puntos = orden.map { nodos[it] }
+        // Un contorno que se cruza no representa una superficie de estancia fiable.
+        fun orientacion(a: Punto, b: Punto, c: Punto): Double =
+            (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x)
+        fun toca(a: Punto, b: Punto, p: Punto): Boolean =
+            abs(orientacion(a, b, p)) < 1e-9 &&
+                p.x >= minOf(a.x, b.x) - 1e-9 && p.x <= maxOf(a.x, b.x) + 1e-9 &&
+                p.y >= minOf(a.y, b.y) - 1e-9 && p.y <= maxOf(a.y, b.y) + 1e-9
+        fun cruzan(a: Punto, b: Punto, c: Punto, d: Punto): Boolean {
+            val o1 = orientacion(a, b, c); val o2 = orientacion(a, b, d)
+            val o3 = orientacion(c, d, a); val o4 = orientacion(c, d, b)
+            return (o1 * o2 < 0 && o3 * o4 < 0) || toca(a, b, c) || toca(a, b, d) || toca(c, d, a) || toca(c, d, b)
+        }
+        for (i in puntos.indices) for (j in i + 1 until puntos.size) {
+            if (j == i + 1 || (i == 0 && j == puntos.lastIndex)) continue
+            if (cruzan(puntos[i], puntos[(i + 1) % puntos.size], puntos[j], puntos[(j + 1) % puntos.size])) return null
+        }
+        return puntos
     }
 
     fun superficie(muros: List<MuroEntity>): Double? =

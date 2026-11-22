@@ -2,6 +2,12 @@ package es.obra.app.datos
 
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
+import java.io.File
+import java.util.zip.ZipEntry
+import java.util.zip.ZipOutputStream
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertArrayEquals
 import org.junit.Assert.assertThrows
 import org.junit.Test
@@ -25,6 +31,33 @@ class CopiaObraTest {
             base.copy(cambios = base.cambios.map { it.copy(estanciaId = 9) }),
             base.copy(estancias = base.estancias.map { it.copy(foto = "../secreto") })
         ).forEach { invalida -> assertThrows(IllegalArgumentException::class.java) { validarRelaciones(invalida) } }
+    }
+
+    @Test fun copiaConFotoSeLeeYSeRechazaSiEstaTruncadaOModificada() {
+        val archivo = File.createTempFile("obra-prueba", ".zip")
+        try {
+            ZipOutputStream(archivo.outputStream()).use { zip ->
+                zip.putNextEntry(ZipEntry("obra.json"))
+                zip.write(Json.encodeToString(base).toByteArray())
+                zip.closeEntry()
+                zip.putNextEntry(ZipEntry("fotos/2"))
+                zip.write(byteArrayOf(1, 2, 3))
+                zip.closeEntry()
+            }
+            val original = archivo.readBytes()
+            val (obra, fotos) = leerCopia(archivo)
+            assertEquals(base, obra)
+            assertArrayEquals(byteArrayOf(1, 2, 3), fotos.getValue("fotos/2"))
+            archivo.writeBytes(original.copyOf(original.size - 10))
+            assertThrows(Exception::class.java) { leerCopia(archivo) }
+            archivo.writeBytes(original)
+            ZipOutputStream(archivo.outputStream()).use { zip ->
+                zip.putNextEntry(ZipEntry("obra.json"))
+                zip.write(Json.encodeToString(base).toByteArray())
+                zip.closeEntry()
+            }
+            assertThrows(IllegalArgumentException::class.java) { leerCopia(archivo) }
+        } finally { archivo.delete() }
     }
 
     @Test fun limitaContenidoAlLeer() {
