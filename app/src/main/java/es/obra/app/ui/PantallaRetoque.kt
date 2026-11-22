@@ -39,6 +39,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -53,6 +54,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.core.content.FileProvider
 import es.obra.app.datos.Exportador
+import es.obra.app.datos.ObraDao
+import es.obra.app.datos.ProyectoRepositorio
+import es.obra.app.datos.rutaFoto
+import es.obra.app.dominio.PromptEstancia
 import es.obra.app.ia.AjustesIA
 import es.obra.app.ia.ClienteIA
 import es.obra.app.ia.CupoDiario
@@ -76,7 +81,7 @@ private val LUCES = listOf("foco en el techo", "aplique en la pared", "tira LED"
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
+fun PantallaRetoque(obraId: Long, estanciaId: Long? = null, dao: ObraDao, alVolver: () -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
     val ajustes = remember { AjustesIA(contexto) }
@@ -91,6 +96,8 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
     var duracion by remember { mutableStateOf(0L) }
 
     var peticion by remember { mutableStateOf("") }
+    var contextoEstancia by remember { mutableStateOf("") }
+    var nombreEstancia by remember { mutableStateOf<String?>(null) }
     var pared by remember { mutableStateOf<String?>(null) }
     var suelo by remember { mutableStateOf<String?>(null) }
     var luces by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -101,6 +108,7 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
     var aviso by remember { mutableStateOf<String?>(null) }
     var ronda by remember { mutableStateOf(0) }
     var pidiendoPermiso by remember { mutableStateOf(false) }
+    var permisoParaEnvio by remember { mutableStateOf(false) }
     var uriCamara by remember { mutableStateOf<Uri?>(null) }
 
     fun cargar(uri: Uri) {
@@ -125,6 +133,22 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
         }
     }
 
+    LaunchedEffect(obraId, estanciaId) {
+        if (estanciaId != null) {
+            val obra = dao.obtenerObra(obraId)
+            val estancia = obra?.let { ProyectoRepositorio.cargar(dao, it).estancia(estanciaId) }
+            if (estancia == null) {
+                aviso = "No se ha encontrado la estancia."
+            } else {
+                nombreEstancia = estancia.nombre
+                contextoEstancia = PromptEstancia.contextoEditable(estancia)
+                val archivo = rutaFoto(contexto.filesDir, estancia.foto)
+                if (archivo?.isFile == true) cargar(Uri.fromFile(archivo))
+                else if (estancia.foto.isNotBlank()) aviso = "No se encuentra la foto guardada; elige otra."
+            }
+        }
+    }
+
     val galeria = rememberLauncherForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
         if (uri != null) cargar(uri)
     }
@@ -139,13 +163,10 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
             aviso = "Primero haz o elige una foto."
             return
         }
-        if (!ajustes.consentido) {
-            pidiendoPermiso = true
-            return
-        }
+        val solicitud = listOf(contextoEstancia.trim(), peticion.trim()).filter { it.isNotBlank() }.joinToString("\n")
         val prompt = PromptRetoque.componer(
             PromptRetoque.Eleccion(
-                peticion = peticion,
+                peticion = solicitud,
                 pared = pared,
                 suelo = suelo,
                 luces = luces.toList(),
@@ -157,6 +178,10 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
             aviso = "Escribe qué quieres cambiar."
             return
         }
+        if (!prompt.contains("Cambios pedidos: $solicitud")) {
+            aviso = "La petición es demasiado larga. Acorta el contexto o las instrucciones antes de enviarla."
+            return
+        }
         val hoy = LocalDate.now().toString()
         val actual = cupo.deHoy(hoy)
         if (!actual.puede()) {
@@ -164,6 +189,11 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
             return
         }
 
+        if (!permisoParaEnvio) {
+            pidiendoPermiso = true
+            return
+        }
+        permisoParaEnvio = false
         cargando = true
         aviso = null
         alcance.launch {
@@ -232,7 +262,7 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
         ) {
             Spacer(Modifier.height(4.dp))
             Text(
-                "Se pide con tus palabras y devuelve la foto cambiada. Tú dices qué ha hecho mal y se vuelve a pedir.",
+                "Prepara una petición con tus palabras. El Worker incluido tiene la generación real desactivada por seguridad.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -265,7 +295,7 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
                 )
             } else {
                 Text(
-                    if (ajustes.configurada) "Servicio conectado" else "Falta conectar el servicio",
+                    if (ajustes.configurada) "Dirección guardada (conexión no verificada)" else "Falta conectar el servicio",
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium,
                     color = if (ajustes.configurada) Tinta.verde else Tinta.rojo
@@ -346,6 +376,16 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
 
             Spacer(Modifier.height(20.dp))
             Text("2 · Qué quieres cambiar", style = MaterialTheme.typography.titleMedium)
+            if (nombreEstancia != null) {
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(
+                    value = contextoEstancia,
+                    onValueChange = { contextoEstancia = it },
+                    label = { Text("Datos y cambios aprobados de ${nombreEstancia}") },
+                    supportingText = { Text("Revisa estos datos; el modelo puede alterar medidas y geometría.") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
             Spacer(Modifier.height(10.dp))
             OutlinedTextField(
                 value = peticion,
@@ -407,7 +447,7 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
             } else {
                 Button(
                     onClick = { procesar() },
-                    enabled = foto != null && peticion.isNotBlank() && ajustes.configurada,
+                    enabled = foto != null && (peticion.isNotBlank() || contextoEstancia.isNotBlank()) && ajustes.configurada,
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(60.dp)
@@ -524,8 +564,7 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
 
             Spacer(Modifier.height(20.dp))
             Text(
-                "Cada imagen gasta cupo del plan gratuito de Cloudflare (30 al día como mucho). " +
-                    "La foto sale del móvil para el retoque y no se guarda. Sin conexión, esta pantalla no funciona; todo lo demás, sí.",
+                "La generación remota puede tener coste y enviar fotos a terceros. El límite del móvil no protege el gasto del servicio. Comprueba las condiciones del proveedor antes de usarlo.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -539,15 +578,15 @@ fun PantallaRetoque(obraId: Long, alVolver: () -> Unit) {
             title = { Text("La foto sale del móvil") },
             text = {
                 Text(
-                    "Para el retoque, esta foto se manda a Cloudflare y se procesa allí. " +
-                        "No se guarda en ningún sitio y no se usa para entrenar. " +
-                        "¿Seguimos?"
+                    "La foto y la petición se envían al servicio configurado y pueden llegar a terceros. " +
+                        "Consulta su política de privacidad y obtén permiso del cliente antes de continuar. ¿Seguimos?"
                 )
             },
             confirmButton = {
                 TextButton(onClick = {
-                    ajustes.consentido = true
+                    permisoParaEnvio = true
                     pidiendoPermiso = false
+                    procesar()
                 }) { Text("Sí, adelante") }
             },
             dismissButton = {

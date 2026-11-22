@@ -82,6 +82,22 @@ object PromptEstancia {
         return cuerpo.take(hueco).trimEnd() + "\n" + REGLA
     }
 
+    /** Contexto editable para la pantalla de retoque; nunca incluye cambios pendientes o rechazados. */
+    fun contextoEditable(estancia: EstanciaProyecto): String = buildList {
+        add("Estancia: ${estancia.nombre}.")
+        if (estancia.superficie > 0 && estancia.superficie.isFinite()) {
+            add("Superficie medida: ${Cifra.numero(estancia.superficie)} m².")
+        }
+        if (estancia.altura > 0 && estancia.altura.isFinite()) {
+            add("Altura registrada: ${Cifra.numero(estancia.altura)} m.")
+        }
+        val visibles = estancia.aprobados.filter { it.tipo.seVe }
+        if (visibles.isNotEmpty()) {
+            add("Cambios visibles aprobados:")
+            visibles.forEach { add("- ${it.instruccion}") }
+        }
+    }.joinToString("\n")
+
     /** Para la pantalla: cuántos cambios van al modelo y cuántos se quedan fuera. */
     fun cobertura(estancia: EstanciaProyecto): Pair<Int, Int> {
         val pedidos = estancia.aprobados.filter { it.tipo.seVe }

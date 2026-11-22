@@ -218,6 +218,25 @@ class CambiosObraTest {
     }
 
     @Test
+    fun `contexto editable contiene medidas y solo cambios visibles aprobados`() {
+        val est = EstanciaProyecto(
+            id = 1, nombre = "Salón", superficie = 18.5, altura = 2.6,
+            cambios = listOf(
+                cambio(TipoCambio.SUELO_LAMINADO, 18.0, EstadoCambio.APROBADO),
+                cambio(TipoCambio.BANERA, 1.0, EstadoCambio.PROPUESTO),
+                cambio(TipoCambio.TABIQUE_TIRADO, 6.0, EstadoCambio.APROBADO)
+            )
+        )
+        val texto = PromptEstancia.contextoEditable(est)
+        assertTrue(texto.contains("Salón"))
+        assertTrue(texto.contains("18,50 m²"))
+        assertTrue(texto.contains("2,60 m"))
+        assertTrue(texto.contains("Suelo laminado"))
+        assertFalse(texto.contains("Bañera"))
+        assertFalse(texto.contains("Tirar un tabique"))
+    }
+
+    @Test
     fun `los cambios que no se ven no se le piden al modelo`() {
         // Tirar un tabique cambia la distribución: va al plano y al presupuesto, pero no se le
         // pide al modelo de imagen, que tiene prohibido mover la geometría.

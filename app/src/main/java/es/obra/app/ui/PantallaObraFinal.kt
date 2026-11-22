@@ -99,7 +99,7 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
+fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoque: (Long) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
 
@@ -225,6 +225,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
                                 recargar()
                             }
                         },
+                        alRetoque = { alRetoque(estancia.id) },
                         alPonerFoto = {
                             estanciaDeFoto = estancia.id
                             selectorFoto.launch(
@@ -367,7 +368,8 @@ private fun TarjetaEstancia(
     alAnadir: () -> Unit,
     alCambiarEstado: (Cambio, EstadoCambio) -> Unit,
     alBorrar: (Cambio) -> Unit,
-    alPonerFoto: () -> Unit
+    alPonerFoto: () -> Unit,
+    alRetoque: () -> Unit
 ) {
     val contexto = LocalContext.current
     Surface(
@@ -442,6 +444,9 @@ private fun TarjetaEstancia(
             }
 
             Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
+                Text("Preparar retoque con esta estancia")
+            }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = alAnadir, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -769,7 +774,7 @@ private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
             Column(Modifier.fillMaxSize().padding(20.dp)) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Text(
-                        "La obra terminada",
+                        "Resumen de la obra",
                         style = MaterialTheme.typography.headlineMedium,
                         modifier = Modifier.weight(1f)
                     )
@@ -778,7 +783,7 @@ private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
                     }
                 }
                 Text(
-                    "Lo que se ve al final, estancia por estancia. Solo lo aprobado.",
+                    "Foto original y cambios aprobados. Todavía no es una imagen de la obra terminada.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -81,7 +81,7 @@ sealed interface Pantalla {
     data class Plano(val id: Long) : Pantalla
     data class Visual(val id: Long) : Pantalla
     data class Presupuesto(val id: Long) : Pantalla
-    data class Retoque(val id: Long) : Pantalla
+    data class Retoque(val id: Long, val estanciaId: Long? = null) : Pantalla
     data class ObraFinal(val id: Long) : Pantalla
     data object Actualizar : Pantalla
 }
@@ -169,13 +169,16 @@ fun AppObra() {
 
         is Pantalla.Retoque -> PantallaRetoque(
             obraId = actual.id,
-            alVolver = { pantalla = Pantalla.Obra(actual.id) }
+            estanciaId = actual.estanciaId,
+            dao = dao,
+            alVolver = { pantalla = if (actual.estanciaId != null) Pantalla.ObraFinal(actual.id) else Pantalla.Obra(actual.id) }
         )
 
         is Pantalla.ObraFinal -> PantallaObraFinal(
             obraId = actual.id,
             dao = dao,
-            alVolver = { pantalla = Pantalla.Obra(actual.id) }
+            alVolver = { pantalla = Pantalla.Obra(actual.id) },
+            alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) }
         )
 
         is Pantalla.Medir -> PantallaMedir(

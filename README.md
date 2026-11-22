@@ -14,7 +14,7 @@ obra terminada** al cliente. Sin cuenta ni nube obligatoria para las funciones l
 - **Evaluación del cliente**: cada cambio se aprueba, se deja pendiente o se descarta. Lo
   aprobado es lo que cuenta para el dinero y para lo que se enseña.
 - **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia; todavía no genera una imagen de la obra terminada.
-- **IA opcional**: existe una pantalla de retoque separada. El prompt derivado de los cambios aprobados aún no está conectado a ella. La integración real del modelo no se ha validado.
+- **IA opcional**: se puede preparar un retoque desde una estancia con su foto, medidas y cambios visibles aprobados, además de instrucciones editables. La integración real del modelo no está habilitada ni validada; las imágenes generadas no garantizan respetar medidas o geometría.
 - La IA **nunca** está en el camino crítico: apagada por defecto y sin claves en el APK.
 - **IA y recorte remotos bloqueados:** la versión actual del Worker no llama a proveedores de pago hasta incorporar controles fiables de acceso y gasto. La simulación devuelve la foto original.
 
