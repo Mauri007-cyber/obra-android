@@ -38,9 +38,12 @@ object PdfPresupuesto {
         total: Double
     ): File {
         val documento = PdfDocument()
-        val pagina = documento.startPage(PdfDocument.PageInfo.Builder(ANCHO, ALTO, 1).create())
-        dibujar(pagina.canvas, obra, partidas, tarifas, base, iva, total)
-        documento.finishPage(pagina)
+        val paginas = partidas.chunked(15).ifEmpty { listOf(emptyList()) }
+        paginas.forEachIndexed { indice, lineas ->
+            val pagina = documento.startPage(PdfDocument.PageInfo.Builder(ANCHO, ALTO, indice + 1).create())
+            dibujar(pagina.canvas, obra, lineas, tarifas, base, iva, total, indice == paginas.lastIndex)
+            documento.finishPage(pagina)
+        }
 
         val carpeta = File(contexto.filesDir, "export").apply { mkdirs() }
         val destino = File(carpeta, "presupuesto-obra-${obra.id}.pdf")
@@ -56,7 +59,8 @@ object PdfPresupuesto {
         tarifas: Tarifas,
         base: Double,
         iva: Double,
-        total: Double
+        total: Double,
+        mostrarTotales: Boolean
     ) {
         lienzo.drawColor(Color.WHITE)
 
@@ -99,7 +103,7 @@ object PdfPresupuesto {
         val tintaGris = pincel(Color.rgb(90, 96, 104), 10f)
 
         partidas.forEach { partida ->
-            lienzo.drawText(partida.concepto, MARGEN, y, tinta)
+            lienzo.drawText(android.text.TextUtils.ellipsize(partida.concepto, android.text.TextPaint(tinta), 275f, android.text.TextUtils.TruncateAt.END).toString(), MARGEN, y, tinta)
             lienzo.drawText(
                 "${Presupuesto.cantidad(partida.cantidad)} ${partida.unidad}",
                 330f,
@@ -112,6 +116,7 @@ object PdfPresupuesto {
             lienzo.drawLine(MARGEN, y - 6f, ANCHO - MARGEN, y - 6f, linea)
         }
 
+        if (!mostrarTotales) return
         y += 14f
         lienzo.drawText("Base", 410f, y, tintaGris)
         lienzo.drawText(Presupuesto.euros(base), 490f, y, tinta)

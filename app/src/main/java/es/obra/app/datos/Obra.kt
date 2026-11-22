@@ -13,6 +13,7 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Update
+import androidx.room.Transaction
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
@@ -177,6 +178,34 @@ interface ObraDao {
 
     @Query("UPDATE estancias SET superficie = :superficie, altura = :altura WHERE id = :id AND obraId = :obraId")
     suspend fun guardarMedidasEstancia(obraId: Long, id: Long, superficie: Double, altura: Double)
+
+    @Query("UPDATE estancias SET superficie = :superficie WHERE id = :id AND obraId = :obraId")
+    suspend fun guardarSuperficieEstancia(obraId: Long, id: Long, superficie: Double)
+
+    @Transaction
+    suspend fun instantaneaObra(id: Long): ObraExport {
+        val obra = requireNotNull(obtenerObra(id)) { "La obra ya no existe" }
+        val estancias = estancias(id)
+        val muros = estancias.flatMap { muros(it.id) }
+        return ObraExport(obra = obra, estancias = estancias, muros = muros,
+            huecos = muros.flatMap { huecos(it.id) }, cambios = cambios(id))
+    }
+
+    @Transaction
+    suspend fun importarObra(paquete: ObraExport): Long {
+        val nuevaObra = insertarObra(paquete.obra.copy(id = 0))
+        val idsEstancias = mutableMapOf<Long, Long>()
+        for (estancia in paquete.estancias) {
+            idsEstancias[estancia.id] = insertarEstancia(estancia.copy(id = 0, obraId = nuevaObra))
+        }
+        val idsMuros = mutableMapOf<Long, Long>()
+        for (muro in paquete.muros) {
+            idsMuros[muro.id] = insertarMuro(muro.copy(id = 0, estanciaId = idsEstancias.getValue(muro.estanciaId)))
+        }
+        for (hueco in paquete.huecos) insertarHueco(hueco.copy(id = 0, muroId = idsMuros.getValue(hueco.muroId)))
+        for (cambio in paquete.cambios) insertarCambio(cambio.copy(id = 0, estanciaId = idsEstancias.getValue(cambio.estanciaId)))
+        return nuevaObra
+    }
 
     @Delete
     suspend fun borrarObra(obra: ObraEntity)

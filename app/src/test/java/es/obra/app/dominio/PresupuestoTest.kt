@@ -37,6 +37,20 @@ class PresupuestoTest {
     }
 
     @Test
+    fun `partidas aprobadas quedan separadas por estancia y no incluyen propuestas`() {
+        val aprobado = Cambio(tipo = TipoCambio.SUELO_LAMINADO, cantidad = 10.0, estado = EstadoCambio.APROBADO)
+        val proyecto = Proyecto("Casa", listOf(
+            EstanciaProyecto(id = 1, nombre = "Salón", cambios = listOf(aprobado)),
+            EstanciaProyecto(id = 2, nombre = "Cocina", cambios = listOf(aprobado.copy(cantidad = 5.0), aprobado.copy(estado = EstadoCambio.PROPUESTO)))
+        ))
+        val partidas = Presupuesto.partidasAprobadas(proyecto)
+        assertEquals(2, partidas.size)
+        assertTrue(partidas[0].concepto.startsWith("Salón:"))
+        assertTrue(partidas[1].concepto.startsWith("Cocina:"))
+        assertEquals(15.0 * aprobado.precio, Presupuesto.base(partidas), 0.0001)
+    }
+
+    @Test
     fun `las partidas salen de lo dibujado`() {
         val partidas = Presupuesto.partidas(muros, huecos, 12.0, 30.0, Tarifas.porDefecto)
 

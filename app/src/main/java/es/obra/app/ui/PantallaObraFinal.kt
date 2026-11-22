@@ -99,7 +99,7 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoque: (Long) -> Unit) {
+fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoque: (Long) -> Unit, alPlano: (Long) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
 
@@ -228,6 +228,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
                         },
                         alRetoque = { alRetoque(estancia.id) },
                         alMedir = { midiendo = estancia },
+                        alPlano = { alPlano(estancia.id) },
                         alPonerFoto = {
                             estanciaDeFoto = estancia.id
                             selectorFoto.launch(
@@ -240,7 +241,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
                 item {
                     Text(
                         "Una obra puede tener las estancias que haga falta, y cada una tantos " +
-                            "cambios como hagan falta. Nada de prompts: se elige del catálogo.",
+                            "cambios como hagan falta. Para el retoque también puedes escribir con tus propias palabras.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -386,7 +387,8 @@ private fun TarjetaEstancia(
     alBorrar: (Cambio) -> Unit,
     alPonerFoto: () -> Unit,
     alRetoque: () -> Unit,
-    alMedir: () -> Unit
+    alMedir: () -> Unit,
+    alPlano: () -> Unit
 ) {
     val contexto = LocalContext.current
     Surface(
@@ -463,6 +465,9 @@ private fun TarjetaEstancia(
             Spacer(Modifier.height(6.dp))
             OutlinedButton(onClick = alMedir, modifier = Modifier.fillMaxWidth()) {
                 Text("Editar medidas de esta estancia")
+            }
+            OutlinedButton(onClick = alPlano, modifier = Modifier.fillMaxWidth()) {
+                Text("Abrir plano de esta estancia")
             }
             OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
                 Text("Preparar retoque con esta estancia")
