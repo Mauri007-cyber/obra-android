@@ -169,6 +169,15 @@ interface ObraDao {
     @Update
     suspend fun actualizarObra(obra: ObraEntity)
 
+    @Query("UPDATE obras SET largo = :largo, ancho = :ancho, altura = :altura, superficieCerrada = CASE WHEN largo != :largo OR ancho != :ancho THEN 0 ELSE superficieCerrada END, metodo = CASE WHEN largo != :largo OR ancho != :ancho THEN 'manual' ELSE metodo END WHERE id = :id")
+    suspend fun guardarMedidasManuales(id: Long, largo: Double, ancho: Double, altura: Double)
+
+    @Query("UPDATE obras SET largo = :largo, ancho = :ancho, factorCalibracion = :factor, metodo = 'arcore', superficieCerrada = 0 WHERE id = :id")
+    suspend fun guardarMedidasAr(id: Long, largo: Double, ancho: Double, factor: Double)
+
+    @Query("UPDATE estancias SET superficie = :superficie, altura = :altura WHERE id = :id AND obraId = :obraId")
+    suspend fun guardarMedidasEstancia(obraId: Long, id: Long, superficie: Double, altura: Double)
+
     @Delete
     suspend fun borrarObra(obra: ObraEntity)
 

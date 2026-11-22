@@ -44,6 +44,8 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 ## Limitaciones importantes
 
 - No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Las reglas de copia incluyen fotos, pero no se ha probado la restauración real y Android puede limitar las copias por tamaño o configuración.
+- Cada estancia permite editar su superficie y altura. El presupuesto automático heredado se bloquea cuando hay varias estancias: sus importes no se han integrado aún en un presupuesto completo. El plano se sigue editando solo para la primera estancia.
+- La APK de depuración usa el identificador `es.obra.app.prueba`: se instala como una app distinta, sin acceso a los datos ni a las actualizaciones de la versión normal.
 - La exportación incluye los cambios, pero no los archivos de fotos y aún no existe una importación completa. No la consideres una copia de seguridad restaurable.
 - Las llamadas de pago del Worker están bloqueadas en el código local. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla; aún faltan autenticación y límites fiables.
 - El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.

@@ -108,6 +108,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
     var refresco by remember { mutableIntStateOf(0) }
 
     var editando by remember { mutableStateOf<EstanciaProyecto?>(null) }
+    var midiendo by remember { mutableStateOf<EstanciaProyecto?>(null) }
     var creandoEstancia by remember { mutableStateOf(false) }
     var ensenando by remember { mutableStateOf(false) }
     var estanciaDeFoto by remember { mutableStateOf<Long?>(null) }
@@ -226,6 +227,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
                             }
                         },
                         alRetoque = { alRetoque(estancia.id) },
+                        alMedir = { midiendo = estancia },
                         alPonerFoto = {
                             estanciaDeFoto = estancia.id
                             selectorFoto.launch(
@@ -263,6 +265,20 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
                     )
                     ProyectoRepositorio.guardar(dao, estancia.id, nuevo)
                     editando = null
+                    recargar()
+                }
+            }
+        )
+    }
+
+    midiendo?.let { estancia ->
+        DialogoMedidasEstancia(
+            estancia = estancia,
+            alCerrar = { midiendo = null },
+            alGuardar = { superficie, altura ->
+                alcance.launch {
+                    dao.guardarMedidasEstancia(obraId, estancia.id, superficie, altura)
+                    midiendo = null
                     recargar()
                 }
             }
@@ -369,7 +385,8 @@ private fun TarjetaEstancia(
     alCambiarEstado: (Cambio, EstadoCambio) -> Unit,
     alBorrar: (Cambio) -> Unit,
     alPonerFoto: () -> Unit,
-    alRetoque: () -> Unit
+    alRetoque: () -> Unit,
+    alMedir: () -> Unit
 ) {
     val contexto = LocalContext.current
     Surface(
@@ -444,6 +461,9 @@ private fun TarjetaEstancia(
             }
 
             Spacer(Modifier.height(6.dp))
+            OutlinedButton(onClick = alMedir, modifier = Modifier.fillMaxWidth()) {
+                Text("Editar medidas de esta estancia")
+            }
             OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
                 Text("Preparar retoque con esta estancia")
             }
@@ -711,6 +731,33 @@ private fun FilaCatalogo(tipo: TipoCambio, alPulsar: () -> Unit) {
 /* ------------------------------------------------------------------ */
 /* Estancia nueva                                                      */
 /* ------------------------------------------------------------------ */
+
+@Composable
+private fun DialogoMedidasEstancia(
+    estancia: EstanciaProyecto,
+    alCerrar: () -> Unit,
+    alGuardar: (Double, Double) -> Unit
+) {
+    var superficie by remember(estancia.id) { mutableStateOf(if (estancia.superficie > 0) estancia.superficie.toString().replace('.', ',') else "") }
+    var altura by remember(estancia.id) { mutableStateOf(estancia.altura.toString().replace('.', ',')) }
+    val area = superficie.trim().replace(',', '.').toDoubleOrNull()
+    val alto = altura.trim().replace(',', '.').toDoubleOrNull()
+    val valido = area != null && area.isFinite() && area > 0 && alto != null && alto.isFinite() && alto > 0
+    AlertDialog(
+        onDismissRequest = alCerrar,
+        title = { Text("Medidas de ${estancia.nombre}") },
+        text = {
+            Column {
+                OutlinedTextField(value = superficie, onValueChange = { superficie = it }, label = { Text("Superficie (m²)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                Spacer(Modifier.height(8.dp))
+                OutlinedTextField(value = altura, onValueChange = { altura = it }, label = { Text("Altura (m)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal), singleLine = true)
+                Text("Introduce medidas comprobadas en obra.", style = MaterialTheme.typography.bodyMedium)
+            }
+        },
+        confirmButton = { TextButton(onClick = { if (valido) alGuardar(area!!, alto!!) }, enabled = valido) { Text("Guardar") } },
+        dismissButton = { TextButton(onClick = alCerrar) { Text("Cancelar") } }
+    )
+}
 
 @Composable
 private fun DialogoNuevaEstancia(

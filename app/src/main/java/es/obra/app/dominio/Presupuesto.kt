@@ -64,6 +64,10 @@ data class Partida(
  */
 object Presupuesto {
 
+    /** El cálculo heredado trata todos los muros como una sola habitación. */
+    fun permiteCalculoHeredado(numeroEstancias: Int, metodo: String, hayMuros: Boolean): Boolean =
+        numeroEstancias <= 1 && (!hayMuros || metodo == "plano")
+
     /** Superficie del suelo: la del contorno si cierra, si no largo × ancho. */
     fun suelo(muros: List<MuroEntity>, largo: Double, ancho: Double): Double =
         Poligono.superficie(muros) ?: (largo * ancho)
