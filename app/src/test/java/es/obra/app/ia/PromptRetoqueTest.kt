@@ -10,6 +10,13 @@ class PromptRetoqueTest {
     private val base = PromptRetoque.Eleccion(peticion = "Pon el suelo de tarima clara")
 
     @Test
+    fun `identifica respuesta simulada`() {
+        assertTrue(esRespuestaSimulada("true"))
+        assertFalse(esRespuestaSimulada("false"))
+        assertFalse(esRespuestaSimulada(null))
+    }
+
+    @Test
     fun `sin peticion no hay prompt`() {
         assertEquals("", PromptRetoque.componer(PromptRetoque.Eleccion(peticion = "   ")))
         assertEquals("", PromptRetoque.componer(base.copy(peticion = "")))

@@ -7,11 +7,9 @@
   "observability": { "enabled": true },
   "ai": { "binding": "AI" },
   "vars": {
-    // Imágenes por dispositivo y día. 30 es holgado para una obra y deja margen en el cupo gratis.
-    "MAX_DIA": "30",
     // FLUX.2 [klein] 4B: 4 pasos, hasta 4 imágenes de entrada, edición con prompt.
     "MODELO": "@cf/black-forest-labs/flux-2-klein-4b",
     // 1 = no llama al modelo y devuelve la misma foto. Sirve para probar la app sin gastar cupo.
-    "SIMULADO": "0"
+    "SIMULADO": "1"
   }
 }

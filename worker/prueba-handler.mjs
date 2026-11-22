@@ -1,123 +1,56 @@
-// Prueba el handler entero (rutas, validación, cupo, respuesta) sin Cloudflare ni red.
-// Ejecutar: node --test worker/prueba-handler.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import worker from './src/index.js';
 
-// Cache API mínima: el Worker la usa para contar imágenes por día.
-const almacen = new Map();
-globalThis.caches = {
-  default: {
-    async match(clave) {
-      return almacen.has(clave) ? new Response(almacen.get(clave)) : undefined;
-    },
-    async put(clave, respuesta) {
-      almacen.set(clave, await respuesta.text());
-    }
-  }
-};
-
-const { default: worker } = await import('./src/index.js');
-
-function jpegFalso(bytes = 3000) {
-  const datos = new Uint8Array(bytes);
-  datos[0] = 0xff;
-  datos[1] = 0xd8;
-  datos[2] = 0xff;
-  return Buffer.from(datos).toString('base64');
+function foto() {
+  const bytes = new Uint8Array(3000);
+  bytes.set([0xff, 0xd8, 0xff]);
+  return Buffer.from(bytes).toString('base64');
+}
+function retoque(cuerpo = { foto: foto(), prompt: 'Pon el suelo de tarima clara' }) {
+  return new Request('https://obra.test/retoque', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(cuerpo)
+  });
 }
 
-const entorno = (extra = {}) => ({
-  MODELO: '@cf/black-forest-labs/flux-2-klein-4b',
-  MAX_DIA: '2',
-  SIMULADO: '0',
-  SAL: 'prueba',
-  ...extra
+test('las rutas de pago rechazan incluso con binding, token y peticiones simultáneas', async () => {
+  let llamadas = 0;
+  const env = {
+    AI: { run: async () => { llamadas++; return { image: 'aW1hZ2Vu' }; } },
+    APY_TOKEN: 'secreto-de-prueba',
+    FETCH_RECORTE: async () => { llamadas++; return new Response(); },
+    SIMULADO: '0', MAX_DIA: '999999'
+  };
+  const respuestas = await Promise.all(Array.from({ length: 20 }, (_, i) =>
+    worker.fetch(i % 2 ? retoque() : new Request('https://obra.test/quitar-fondo', { method: 'POST' }), env)
+  ));
+  assert.ok(respuestas.every(res => res.status === 503));
+  assert.equal(llamadas, 0);
 });
 
-const pedir = (cuerpo, cabeceras = {}) =>
-  new Request('https://obra-ia.prueba/retoque', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Dispositivo': 'dispositivo-1', ...cabeceras },
-    body: JSON.stringify(cuerpo)
+test('la simulación devuelve la foto y no invoca ningún proveedor', async () => {
+  let llamadas = 0;
+  const original = foto();
+  const res = await worker.fetch(retoque({ foto: original, prompt: 'Paredes blancas y suelo claro' }), {
+    SIMULADO: '1', AI: { run: async () => { llamadas++; } }
   });
-
-test('salud contesta sin foto y dice el modelo', async () => {
-  const res = await worker.fetch(new Request('https://obra-ia.prueba/salud'), entorno());
-  const cuerpo = await res.json();
-  assert.equal(res.status, 200);
-  assert.equal(cuerpo.ok, true);
-  assert.match(cuerpo.modelo, /flux/);
-  assert.equal(cuerpo.cupoDia, 2);
-});
-
-test('una ruta que no existe da 404 y GET a retoque da 405', async () => {
-  assert.equal((await worker.fetch(new Request('https://x/nada'), entorno())).status, 404);
-  assert.equal((await worker.fetch(new Request('https://x/retoque'), entorno())).status, 405);
-});
-
-test('sin foto o con una frase corta no se llama al modelo', async () => {
-  let llamado = false;
-  const ia = { run: async () => { llamado = true; return { image: 'abc' }; } };
-  const res = await worker.fetch(
-    pedir({ foto: jpegFalso(), prompt: 'corto' }),
-    entorno({ AI: ia })
-  );
-  assert.equal(res.status, 400);
-  assert.equal(llamado, false);
-});
-
-test('con el modelo simulado devuelve la misma foto y avisa', async () => {
-  const foto = jpegFalso();
-  const res = await worker.fetch(
-    pedir({ foto, prompt: 'Pon el suelo de tarima clara' }),
-    entorno({ SIMULADO: '1' })
-  );
   const cuerpo = await res.json();
   assert.equal(res.status, 200);
   assert.equal(cuerpo.simulado, true);
-  assert.equal(cuerpo.imagen, foto);
+  assert.equal(cuerpo.imagen, original);
+  assert.equal(llamadas, 0);
 });
 
-test('con modelo de verdad devuelve la imagen y gasta cupo hasta agotarlo', async () => {
-  almacen.clear();
-  const ia = { run: async () => ({ image: 'aW1hZ2Vu' }) };
-
-  const primera = await worker.fetch(
-    pedir({ foto: jpegFalso(), prompt: 'Pon el suelo de tarima clara' }),
-    entorno({ AI: ia })
-  );
-  assert.equal(primera.status, 200);
-  assert.equal((await primera.json()).imagen, 'aW1hZ2Vu');
-
-  const segunda = await worker.fetch(
-    pedir({ foto: jpegFalso(), prompt: 'Pon las paredes blancas' }),
-    entorno({ AI: ia })
-  );
-  assert.equal((await segunda.json()).quedan, 0);
-
-  const tercera = await worker.fetch(
-    pedir({ foto: jpegFalso(), prompt: 'Otra vez, con el suelo más claro' }),
-    entorno({ AI: ia })
-  );
-  assert.equal(tercera.status, 429);
+test('la simulación valida entradas y rutas', async () => {
+  assert.equal((await worker.fetch(retoque({ foto: foto(), prompt: 'corto' }), { SIMULADO: '1' })).status, 400);
+  assert.equal((await worker.fetch(new Request('https://x/retoque', { method: 'POST', body: 'hola' }), { SIMULADO: '1' })).status, 415);
+  assert.equal((await worker.fetch(new Request('https://x/nada'), {})).status, 404);
+  assert.equal((await worker.fetch(new Request('https://x/retoque'), {})).status, 405);
 });
 
-test('si el modelo falla se responde 502 con lenguaje de obra', async () => {
-  almacen.clear();
-  const ia = { run: async () => { throw new Error('model timeout'); } };
-  const res = await worker.fetch(
-    pedir({ foto: jpegFalso(), prompt: 'Pon el suelo de tarima clara' }),
-    entorno({ AI: ia })
-  );
-  const cuerpo = await res.json();
-  assert.equal(res.status, 502);
-  assert.match(cuerpo.error, /prueba otra vez|cupo/i);
-});
-
-test('sin Content-Type JSON se rechaza con 415', async () => {
-  const res = await worker.fetch(
-    new Request('https://x/retoque', { method: 'POST', body: 'hola' }),
-    entorno()
-  );
-  assert.equal(res.status, 415);
+test('salud no presenta servicios de pago como activos', async () => {
+  const res = await worker.fetch(new Request('https://x/salud'), { MODELO: 'modelo', SIMULADO: '0' });
+  const body = await res.json();
+  assert.equal(body.serviciosDePagoActivos, false);
+  assert.equal(body.simulado, false);
 });

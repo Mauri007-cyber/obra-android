@@ -76,6 +76,7 @@ import es.obra.app.datos.EstanciaEntity
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
 import es.obra.app.datos.ProyectoRepositorio
+import es.obra.app.datos.rutaFoto
 import es.obra.app.dominio.Ambito
 import es.obra.app.dominio.Cambio
 import es.obra.app.dominio.Cifra
@@ -368,6 +369,7 @@ private fun TarjetaEstancia(
     alBorrar: (Cambio) -> Unit,
     alPonerFoto: () -> Unit
 ) {
+    val contexto = LocalContext.current
     Surface(
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = RoundedCornerShape(16.dp),
@@ -408,7 +410,7 @@ private fun TarjetaEstancia(
 
             if (estancia.foto.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
-                val mapa = remember(estancia.foto) { BitmapFactory.decodeFile(estancia.foto) }
+                val mapa = remember(estancia.foto) { rutaFoto(contexto.filesDir, estancia.foto)?.let { BitmapFactory.decodeFile(it.path) } }
                 if (mapa != null) {
                     Image(
                         bitmap = mapa.asImageBitmap(),
@@ -755,6 +757,7 @@ private fun DialogoNuevaEstancia(
 
 @Composable
 private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
+    val contexto = LocalContext.current
     Dialog(
         onDismissRequest = alCerrar,
         properties = DialogProperties(usePlatformDefaultWidth = false)
@@ -791,7 +794,7 @@ private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
                             )
                             if (estancia.foto.isNotBlank()) {
                                 val mapa = remember(estancia.foto) {
-                                    BitmapFactory.decodeFile(estancia.foto)
+                                    rutaFoto(contexto.filesDir, estancia.foto)?.let { BitmapFactory.decodeFile(it.path) }
                                 }
                                 if (mapa != null) {
                                     Spacer(Modifier.height(6.dp))
@@ -884,9 +887,9 @@ fun TextoDelPrompt(estancia: EstanciaProyecto, modifier: Modifier = Modifier) {
 
 private fun copiarFoto(contexto: Context, uri: Uri): String? = runCatching {
     val carpeta = File(contexto.filesDir, "fotos").apply { mkdirs() }
-    val destino = File(carpeta, "estancia-${System.currentTimeMillis()}.jpg")
+    val destino = File.createTempFile("estancia-", ".jpg", carpeta)
     contexto.contentResolver.openInputStream(uri)?.use { entrada ->
         destino.outputStream().use { salida -> entrada.copyTo(salida) }
     } ?: return null
-    destino.absolutePath
+    "fotos/${destino.name}"
 }.getOrNull()

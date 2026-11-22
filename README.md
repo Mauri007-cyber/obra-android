@@ -1,7 +1,7 @@
 # Obra
 
 App Android para medir una estancia, sacar el plano, presupuestar una reforma y **enseñar la
-obra terminada** al cliente. Sin cuenta, sin nube obligatoria y con **coste 0 €**.
+obra terminada** al cliente. Sin cuenta ni nube obligatoria para las funciones locales; los servicios externos pueden tener coste.
 
 - Replanteo del producto: [PLAN-OBRA-COMPLETA.md](PLAN-OBRA-COMPLETA.md)
 - Hoja de ruta y estado: [ROADMAP.md](ROADMAP.md)
@@ -16,9 +16,7 @@ obra terminada** al cliente. Sin cuenta, sin nube obligatoria y con **coste 0 �
 - **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia; todavía no genera una imagen de la obra terminada.
 - **IA opcional**: existe una pantalla de retoque separada. El prompt derivado de los cambios aprobados aún no está conectado a ella. La integración real del modelo no se ha validado.
 - La IA **nunca** está en el camino crítico: apagada por defecto y sin claves en el APK.
-- **Quitar el fondo** de una foto (ApyHub, opcional) desde la vista previa web: la foto pasa por el
-  Worker, que guarda el token y devuelve un PNG transparente para descargar. El token vive solo en
-  el Worker (`APY_TOKEN`); la app y la web nunca lo ven.
+- **IA y recorte remotos bloqueados:** la versión actual del Worker no llama a proveedores de pago hasta incorporar controles fiables de acceso y gasto. La simulación devuelve la foto original.
 
 ## Distribución y actualizaciones
 
@@ -45,21 +43,14 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 
 ## Limitaciones importantes
 
-- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales.
+- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Las reglas de copia incluyen fotos, pero no se ha probado la restauración real y Android puede limitar las copias por tamaño o configuración.
 - La exportación incluye los cambios, pero no los archivos de fotos y aún no existe una importación completa. No la consideres una copia de seguridad restaurable.
-- El Worker carece de autenticación y sus contadores no son un control fiable de gasto. No lo expongas públicamente con servicios de pago activos hasta protegerlo.
+- Las llamadas de pago del Worker están bloqueadas en el código local. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla; aún faltan autenticación y límites fiables.
 - El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.
 
-## Desplegar el intermediario de IA
+## Intermediario de IA
 
-```bash
-cd worker
-npx --yes wrangler@4 login
-npx --yes wrangler@4 deploy
-```
-
-En Windows hay un `worker/desplegar.cmd` que lo hace todo y guarda el error real en
-`despliegue.log`. Detalles y fallos conocidos en [worker/DESPLEGAR.md](worker/DESPLEGAR.md).
+Las llamadas de pago están desactivadas; consulta [worker/DESPLEGAR.md](worker/DESPLEGAR.md) antes de desplegar. El script de Windows aún no está probado en un equipo real.
 
 ## Pruebas
 

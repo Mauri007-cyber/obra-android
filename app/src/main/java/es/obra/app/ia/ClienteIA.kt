@@ -15,6 +15,8 @@ import kotlinx.serialization.json.put
  * Habla con el Worker (worker/), que es quien tiene la clave.
  * Aquí no hay credenciales: solo una dirección y una foto.
  */
+internal fun esRespuestaSimulada(valor: String?): Boolean = valor == "true"
+
 class ClienteIA(private val direccion: String) {
 
     sealed interface Resultado {
@@ -59,6 +61,9 @@ class ClienteIA(private val direccion: String) {
             }
 
             val raiz = Json.parseToJsonElement(texto).jsonObject
+            if (esRespuestaSimulada(raiz["simulado"]?.jsonPrimitive?.contentOrNull)) {
+                return Resultado.Mal("El servicio está en modo de prueba: devuelve la foto original, no genera un retoque.")
+            }
             val imagen = raiz["imagen"]?.jsonPrimitive?.contentOrNull
                 ?: return Resultado.Mal("El servicio no ha devuelto ninguna imagen.")
             val quedan = raiz["quedan"]?.jsonPrimitive?.contentOrNull?.toIntOrNull()
@@ -82,7 +87,8 @@ class ClienteIA(private val direccion: String) {
         413 -> "La foto es demasiado grande. Hazla otra vez más pequeña."
         429 -> "Has llegado al límite de hoy. Mañana puedes seguir."
         415 -> "El servicio no acepta lo que le hemos mandado."
-        502, 503, 504 -> "El servicio está ocupado o sin cupo. Prueba en un minuto."
+        503 -> "El servicio no está disponible o está desactivado por seguridad."
+        502, 504 -> "El servicio no responde. Prueba más tarde."
         else -> "No se ha podido hacer el retoque (código $codigo)."
     }
 }

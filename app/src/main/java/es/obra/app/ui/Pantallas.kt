@@ -741,9 +741,14 @@ private fun ContenidoObra(
                 .fillMaxWidth()
                 .height(56.dp)
         ) {
-            Text("Exportar la obra (.obra)")
+            Text("Exportar datos (.obra, sin fotos)")
         }
 
+        Text(
+            "La exportación no incluye fotos y todavía no se puede restaurar en la app; no es una copia de seguridad completa.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
         Spacer(Modifier.height(40.dp))
         Text(
             "Versión ${BuildConfig.VERSION_NAME}",

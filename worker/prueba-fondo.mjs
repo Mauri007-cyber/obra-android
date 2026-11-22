@@ -4,8 +4,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import zlib from 'node:zlib';
 
-const { default: worker } = await import('./src/index.js');
-const { APY_ENDPOINT, analizarPng } = await import('./src/fondo.js');
+// Estas pruebas ejercitan las funciones del proveedor directamente: la ruta pública
+// está bloqueada hasta contar con control de acceso y gasto fiable.
+const { APY_ENDPOINT, analizarPng, leerImagen, pedirRecorte } = await import('./src/fondo.js');
+const worker = { async fetch(request, env) {
+  const json = (body, status) => new Response(JSON.stringify(body), { status });
+  if (!(request.headers.get('Content-Type') || '').includes('multipart/form-data')) return json({ error: 'Se requiere multipart' }, 415);
+  if (!env.APY_TOKEN) return json({ error: 'Falta APY_TOKEN' }, 503);
+  const revision = await leerImagen((await request.formData()).get('image'));
+  if (!revision.ok) return json({ error: revision.error }, revision.codigo);
+  const recorte = await pedirRecorte(revision, { token: env.APY_TOKEN, fetchImpl: env.FETCH_RECORTE });
+  if (!recorte.ok) return json({ error: recorte.error }, recorte.codigo);
+  return new Response(recorte.png, { headers: {
+    'Content-Type': 'image/png', 'X-Recorte-Transparencia': recorte.canalAlfa ? 'si' : 'no',
+    'X-Recorte-Ancho': String(recorte.ancho), 'X-Recorte-Alto': String(recorte.alto)
+  } });
+} };
 
 // ── PNG de muestra, montado a mano ────────────────────────────────────────────
 

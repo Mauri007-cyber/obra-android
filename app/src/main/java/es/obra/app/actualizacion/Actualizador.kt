@@ -40,7 +40,7 @@ sealed interface EstadoActualizacion {
  * Reglas de seguridad:
  *  - solo HTTPS;
  *  - se rechaza cualquier versión con versionCode <= al instalado (nada de downgrades);
- *  - si el manifiesto trae sha256, el APK descargado debe coincidir o se borra;
+ *  - el manifiesto debe incluir sha256 y el APK descargado debe coincidir o se borra;
  *  - nunca se instala sin que el usuario lo pida.
  *
  * Android siempre muestra su diálogo de confirmación: la instalación totalmente silenciosa
@@ -71,6 +71,7 @@ class Actualizador(private val context: Context) {
                 if (manifiesto.versionCode <= BuildConfig.VERSION_CODE) {
                     EstadoActualizacion.AlDia
                 } else {
+                    validarActualizacion(manifiesto, BuildConfig.VERSION_CODE)
                     EstadoActualizacion.Disponible(manifiesto)
                 }
             } finally {
@@ -84,8 +85,9 @@ class Actualizador(private val context: Context) {
         alProgresar: (Int) -> Unit
     ): EstadoActualizacion = withContext(Dispatchers.IO) {
         runCatching {
+            validarActualizacion(manifiesto, BuildConfig.VERSION_CODE)
             val carpeta = File(context.cacheDir, "updates").apply { mkdirs() }
-            val archivo = File(carpeta, "obra-${manifiesto.versionName}.apk")
+            val archivo = File(carpeta, "obra-${manifiesto.versionCode}.apk")
             if (archivo.exists()) archivo.delete()
 
             val conexion = conectar(manifiesto.apkUrl)
@@ -94,25 +96,24 @@ class Actualizador(private val context: Context) {
                 val total = conexion.contentLengthLong
                 if (total > MAXIMO_APK) error("El APK es demasiado grande")
 
-                conexion.inputStream.use { entrada ->
-                    archivo.outputStream().use { salida ->
-                        val buffer = ByteArray(64 * 1024)
-                        var leido = 0L
-                        var ultimo = -1
-                        while (true) {
-                            val n = entrada.read(buffer)
-                            if (n < 0) break
-                            salida.write(buffer, 0, n)
-                            leido += n
-                            if (total > 0) {
-                                val pct = ((leido * 100) / total).toInt()
-                                if (pct != ultimo) {
-                                    ultimo = pct
-                                    alProgresar(pct)
+                try {
+                    conexion.inputStream.use { entrada ->
+                        archivo.outputStream().use { salida ->
+                            var ultimo = -1
+                            copiarConLimite(entrada, salida, MAXIMO_APK) { leido ->
+                                if (total > 0) {
+                                    val pct = ((leido * 100) / total).coerceAtMost(100).toInt()
+                                    if (pct != ultimo) {
+                                        ultimo = pct
+                                        alProgresar(pct)
+                                    }
                                 }
                             }
                         }
                     }
+                } catch (error: Exception) {
+                    archivo.delete()
+                    throw error
                 }
             } finally {
                 conexion.disconnect()
@@ -122,12 +123,10 @@ class Actualizador(private val context: Context) {
                 archivo.delete()
                 error("El APK es demasiado grande")
             }
-            if (manifiesto.sha256.isNotBlank()) {
-                val real = sha256(archivo)
-                if (!real.equals(manifiesto.sha256, ignoreCase = true)) {
-                    archivo.delete()
-                    error("El APK no coincide con la firma esperada")
-                }
+            val real = sha256(archivo)
+            if (!real.equals(manifiesto.sha256, ignoreCase = true)) {
+                archivo.delete()
+                error("El APK no coincide con el SHA-256 esperado")
             }
             EstadoActualizacion.Lista(archivo, manifiesto)
         }.getOrElse { EstadoActualizacion.Error(it.message ?: "No se pudo descargar") }
