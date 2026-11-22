@@ -541,7 +541,7 @@ private fun ContenidoObra(
         if (uri != null) alcance.launch {
             try {
                 val salida = contexto.contentResolver.openOutputStream(uri) ?: error("No se pudo abrir el destino")
-                CopiaObra.exportar(contexto, dao, obra.id, salida)
+                salida.use { CopiaObra.exportar(contexto, dao, obra.id, it) }
                 avisoCopia = "Copia guardada con las fotos de las estancias."
             } catch (error: Exception) {
                 avisoCopia = "No se pudo guardar la copia: ${error.message ?: "error de escritura"}. Descarta el archivo incompleto."
@@ -791,7 +791,7 @@ private fun ContenidoObra(
         avisoCopia?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
         Text(
-            "La exportación no incluye fotos y todavía no se puede restaurar en la app; no es una copia de seguridad completa.",
+            "La exportación .obra no incluye fotos y no se puede restaurar. Usa la copia ZIP con fotos para guardar la obra; conserva también los originales hasta comprobarla en tu dispositivo.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )

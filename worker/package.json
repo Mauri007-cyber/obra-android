@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "wrangler dev",
     "deploy": "wrangler deploy",
-    "test": "node --test prueba.mjs prueba-handler.mjs prueba-fondo.mjs"
+    "test": "node --test prueba.mjs prueba-handler.mjs prueba-fondo.mjs prueba-flux.mjs prueba-proteccion.mjs"
   },
   "devDependencies": {
     "wrangler": "^4.0.0"
