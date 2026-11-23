@@ -104,7 +104,7 @@ enum class TipoCambio(
     MOLDURA("Moldura o cornisa", Ambito.TECHO, Unidad.ML, 9.0),
 
     // Puertas y ventanas
-    PUERTA_INTERIOR("Puerta interior nueva", Ambito.CARPINTERIA, Unidad.UD, 220.0, listOf("blanca lisa", "roble", "cristal"), mide = false),
+    PUERTA_INTERIOR("Puerta interior nueva", Ambito.CARPINTERIA, Unidad.UD, 220.0, listOf("blanca lisa", "roble", "roble oscuro", "cristal"), mide = false),
     PUERTA_CORREDERA("Puerta corredera", Ambito.CARPINTERIA, Unidad.UD, 380.0, listOf("blanca", "roble", "cristal"), mide = false),
     PUERTA_BLINDADA("Puerta blindada", Ambito.CARPINTERIA, Unidad.UD, 850.0, listOf("blanca", "roble", "negra"), mide = false),
     VENTANA_NUEVA("Ventana nueva", Ambito.CARPINTERIA, Unidad.UD, 350.0, listOf("aluminio blanco", "aluminio negro", "PVC"), mide = false),
@@ -126,7 +126,7 @@ enum class TipoCambio(
     // Cocina
     MUEBLE_COCINA("Mueble de cocina", Ambito.COCINA, Unidad.ML, 280.0, listOf("blanco mate", "roble", "verde", "gris")),
     ENCIMERA("Encimera", Ambito.COCINA, Unidad.ML, 180.0, listOf("compacto blanco", "granito", "madera")),
-    ISLA_COCINA("Isla de cocina", Ambito.COCINA, Unidad.UD, 950.0, listOf("mármol", "madera", "compacto blanco"), mide = false),
+    ISLA_COCINA("Isla de cocina", Ambito.COCINA, Unidad.UD, 950.0, listOf("mármol", "mármol blanco", "madera", "compacto blanco"), mide = false),
     ELECTRODOMESTICOS("Electrodomésticos", Ambito.COCINA, Unidad.GLOBAL, 1800.0, mide = false),
     CAMPANA("Campana extractora", Ambito.COCINA, Unidad.UD, 220.0, mide = false),
     FRONTAL("Frontal de cocina", Ambito.COCINA, Unidad.M2, 65.0, listOf("blanco", "verde", "madera")),

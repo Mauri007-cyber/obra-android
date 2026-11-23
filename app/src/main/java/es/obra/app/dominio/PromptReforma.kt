@@ -21,7 +21,8 @@ object PromptReforma {
         cambios: List<Cambio>,
         frase: String = "",
         estancia: String = "",
-        colocaciones: List<String> = emptyList()
+        colocaciones: List<String> = emptyList(),
+        despejar: Boolean = false
     ): String {
         val visibles = cambios.filter { it.tipo.seVe }
         if (visibles.isEmpty()) return ""
@@ -37,6 +38,8 @@ object PromptReforma {
         if (frases.isEmpty()) return ""
 
         val sitio = if (estancia.isBlank()) "room" else estancia.trim().lowercase()
+        val objetos = visibles.filter { it.tipo.capa == Capa.OBJETO }.map { material(it) }
+        val vaciar = despejar || pideDespeje(frase)
         val luz = if (visibles.any { it.tipo.enciendeLuz }) {
             " Add warm recessed ceiling lighting and a soft warm glow. "
         } else {
@@ -59,13 +62,23 @@ object PromptReforma {
             add("the ceiling height")
             if (!tocaVentanas) add("the windows")
             if (!tocaPuertas) add("the doors")
-            add("all existing furniture")
+            // Si se pide vaciar, pedir a la vez «conserva los muebles» sería contradictorio.
+            if (!vaciar) add("all existing furniture")
         }
 
         return buildString {
             append("Photorealistic interior renovation preview of this $sitio. ")
             append("Keep ${conservar.joinToString(", ")} exactly as they are. ")
             append("Change only the following: ${frases.joinToString(", ")}.")
+            if (objetos.isNotEmpty()) {
+                // Lo añadido se repite al final: con muchas partidas el modelo tiende a olvidar
+                // el mueble nuevo, que es justo lo que el cliente mira.
+                append(" These added items must be clearly visible: ${objetos.joinToString(", ")}.")
+            }
+            if (vaciar) {
+                append(" Remove all tools, rubble, construction debris and temporary objects; ")
+                append("the room must be empty apart from the changes listed.")
+            }
             if (colocaciones.isNotEmpty()) {
                 append(" Respect these positions: ${colocaciones.joinToString(" ")}")
             }
@@ -93,9 +106,22 @@ object PromptReforma {
             cambios = aprobados + extra,
             frase = if (entendidos.isEmpty()) frase else "",
             estancia = estancia,
-            colocaciones = Colocacion.enIngles(frase)
+            colocaciones = Colocacion.enIngles(frase),
+            despejar = pideDespeje(frase)
         )
     }
+
+    /** «Elimina todo lo que aparece entre medias» no es una partida: es vaciar la habitación. */
+    fun pideDespeje(frase: String): Boolean {
+        val limpia = normalizar(frase.replace("\u00a0", " "))
+        return DESPEJE.any { limpia.contains(it) }
+    }
+
+    private val DESPEJE = listOf(
+        "elimina", "eliminar", "quita", "quitar", "retira", "retirar",
+        "vaciar", "vacia", "despeja", "despejar", "sin muebles",
+        "nada entre medias", "no debe haber nada", "vacio de obras", "escombros"
+    )
 
     private val PUERTAS = setOf(
         TipoCambio.PUERTA_INTERIOR,
@@ -136,9 +162,21 @@ object PromptReforma {
         else -> "install a ${material(cambio)}"
     }
 
-    private fun fraseHueco(cambio: Cambio): String = "fit a ${material(cambio)}"
+    private fun fraseHueco(cambio: Cambio): String {
+        val material = material(cambio)
+        return "fit ${articulo(material)} $material"
+    }
 
-    private fun fraseObjeto(cambio: Cambio): String = "install a ${material(cambio)}"
+    private fun fraseObjeto(cambio: Cambio): String {
+        val material = material(cambio)
+        return "add a new $material"
+    }
+
+    /** «a interior door» chirría y despista al modelo: se elige a/an por la primera letra. */
+    private fun articulo(material: String): String =
+        if (material.firstOrNull()?.lowercaseChar() in VOCALES) "an" else "a"
+
+    private val VOCALES = setOf('a', 'e', 'i', 'o', 'u')
 
     /** Nombre inglés de la partida, con el acabado delante: «light oak laminate flooring». */
     private fun material(cambio: Cambio): String {
@@ -153,7 +191,7 @@ object PromptReforma {
     private val BASE: Map<TipoCambio, String> = mapOf(
         TipoCambio.SUELO_LAMINADO to "laminate flooring",
         TipoCambio.SUELO_PORCELANICO to "porcelain floor tiles",
-        TipoCambio.SUELO_VINILICO to "vinyl flooring",
+        TipoCambio.SUELO_VINILICO to "vinyl plank flooring with visible wood planks",
         TipoCambio.SUELO_TARIMA to "solid wood flooring",
         TipoCambio.SUELO_MICROCEMENTO to "microcement floor",
         TipoCambio.RODAPIE to "skirting boards",
@@ -167,7 +205,7 @@ object PromptReforma {
         TipoCambio.PINTURA_FACHADA to "painted facade",
         TipoCambio.FALSO_TECHO to "plasterboard false ceiling",
         TipoCambio.TECHO_REGISTRABLE to "modular ceiling",
-        TipoCambio.TECHO_MADERA to "wooden ceiling with exposed transverse beams",
+        TipoCambio.TECHO_MADERA to "timber ceiling with exposed transverse beams",
         TipoCambio.MOLDURA to "ceiling cornice",
         TipoCambio.PUERTA_INTERIOR to "interior door",
         TipoCambio.PUERTA_CORREDERA to "sliding door",
@@ -236,7 +274,7 @@ object PromptReforma {
         "aluminio" to "aluminium",
         "aluminio blanco" to "white aluminium",
         "aluminio negro" to "black aluminium",
-        "aluminio imitacion madera" to "wood-effect aluminium",
+        "aluminio imitacion madera" to "wood-grain brown aluminium",
         "pvc" to "PVC",
         "cromada" to "chrome",
         "dorada" to "brass",
@@ -245,6 +283,7 @@ object PromptReforma {
         "pizarra" to "slate",
         "granito" to "granite",
         "marmol" to "marble",
+        "marmol blanco" to "white marble",
         "compacto blanco" to "white composite",
         "liso" to "plain",
         "rayas" to "striped",

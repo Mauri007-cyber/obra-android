@@ -14,7 +14,7 @@
 
 const MODELO = "@cf/black-forest-labs/flux-2-klein-4b";
 const MAX_FOTO = 2_000_000; // caracteres base64, ~1,4 MB de imagen
-const MAX_PROMPT = 900;
+const MAX_PROMPT = 1500;
 const LIMITE_DIA = 20;
 
 export default {

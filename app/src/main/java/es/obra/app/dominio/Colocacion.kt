@@ -42,6 +42,11 @@ object Colocacion {
             "(?:de|del|de la|de las|de los)\\s+(pared|muro|tabique|ventana|puerta)"
     )
 
+    /** «2x0,5 metros» es el tamaño del objeto, no su posición. */
+    private val MEDIDAS = Regex(
+        "(\\d+(?:[.,]\\d+)?)\\s*(?:x|por)\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:m|metros?)\\b"
+    )
+
     /** El objeto se nombra antes de la posición: «isla … a un metro de la pared». */
     private val DIRECCIONES = listOf(
         "en el fondo" to "at the far end of the room",
@@ -59,20 +64,36 @@ object Colocacion {
         if (limpia.isBlank()) return emptyList()
 
         val salida = mutableListOf<String>()
+        val objetosColocados = mutableSetOf<String>()
 
         DISTANCIA.findAll(limpia).forEach { encontrado ->
             val objeto = objetoAntes(limpia, encontrado.range.first) ?: return@forEach
+            objetosColocados.add(objeto)
             val valor = encontrado.groupValues[1].replace(',', '.')
             val metros = NUMEROS[valor] ?: valor
             val destino = DESTINOS[encontrado.groupValues[2]] ?: "wall"
             salida.add("Place the $objeto about ${formato(metros)} m from the $destino.")
         }
 
+        MEDIDAS.findAll(limpia).forEach { encontrado ->
+            val objeto = objetoAntes(limpia, encontrado.range.first) ?: return@forEach
+            objetosColocados.add(objeto)
+            val largo = formato(encontrado.groupValues[1].replace(',', '.'))
+            val ancho = formato(encontrado.groupValues[2].replace(',', '.'))
+            salida.add("The $objeto measures about $largo m by $ancho m.")
+        }
+
         DIRECCIONES.forEach { (clave, ingles) ->
             val posicion = limpia.indexOf(clave)
             if (posicion < 0) return@forEach
             val objeto = objetoAntes(limpia, posicion) ?: return@forEach
+            objetosColocados.add(objeto)
             salida.add("Place the $objeto $ingles.")
+        }
+
+        // Sin esto el modelo arrima la isla a la primera pared que encuentra.
+        if ("kitchen island" in objetosColocados) {
+            salida.add("The kitchen island is freestanding, with clear floor space on all sides.")
         }
 
         return salida.distinct()

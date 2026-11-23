@@ -148,10 +148,10 @@ class PromptReformaTest {
             )
         )
 
-        assertTrue(prompt.contains("replace the floor with grey vinyl flooring"))
+        assertTrue(prompt.contains("replace the floor with grey vinyl plank flooring"))
         assertTrue(prompt.contains("paint the walls off-white"))
-        assertTrue(prompt.contains("dark oak wooden ceiling with exposed transverse beams"))
-        assertTrue(prompt.contains("wood-effect aluminium tilt-and-turn window"))
+        assertTrue(prompt.contains("dark oak timber ceiling with exposed transverse beams"))
+        assertTrue(prompt.contains("wood-grain brown aluminium tilt-and-turn window"))
         assertTrue(prompt.contains("marble kitchen island"))
     }
 

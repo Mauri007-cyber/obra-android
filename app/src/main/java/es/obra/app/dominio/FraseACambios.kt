@@ -107,7 +107,8 @@ object FraseACambios {
         "grises" to "gris", "verdes" to "verde",
         "claras" to "clara", "claros" to "claro",
         "oscuras" to "oscuro", "oscuros" to "oscuro",
-        "beiges" to "beige", "azules" to "azul"
+        "beiges" to "beige", "azules" to "azul",
+        "blanca" to "blanco", "negro" to "negro", "negra" to "negro"
     )
 
     /**
@@ -144,7 +145,36 @@ object FraseACambios {
             )
         }
 
-        return salida
+        return salida.map { afinarColor(it, colorPedido(limpia)) }
+    }
+
+    /**
+     * «… y esta debe ser blanca»: el color del mueble nuevo suele caer en otra frase del dictado,
+     * después de un «que sea», «debe ser» o «tiene que ser». No se toma un color suelto de la
+     * frase, que casi siempre habla de las paredes.
+     */
+    private val COLOR_PEDIDO = Regex(
+        "(?:que|debe|deberia|tiene que|tienen que|esta|este|esto)\\s+(?:[a-z]+\\s+)?ser\\s+" +
+            "(blanco|blanca|blancos|blancas|negro|negra|negros|negras|gris|beige|verde|azul)\\b"
+    )
+
+    private fun colorPedido(frase: String): String? {
+        val forma = COLOR_PEDIDO.find(frase)?.groupValues?.get(1) ?: return null
+        return SINGULARES[forma] ?: forma
+    }
+
+    /**
+     * Afina el acabado del mueble añadido con ese color, pero solo si el catálogo tiene justo esa
+     * variante: «mármol» → «mármol blanco». Si no existe, se deja como está.
+     */
+    private fun afinarColor(cambio: Cambio, color: String?): Cambio {
+        if (color == null || cambio.acabado.isBlank()) return cambio
+        if (cambio.tipo.capa != Capa.OBJETO) return cambio
+        val base = normalizar(cambio.acabado)
+        cambio.tipo.acabados
+            .firstOrNull { normalizar(it) == "$base $color" }
+            ?.let { return cambio.copy(acabado = it) }
+        return cambio
     }
 
     /**
