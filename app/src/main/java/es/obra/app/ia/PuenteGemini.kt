@@ -1,5 +1,8 @@
 package es.obra.app.ia
 
+import android.app.Activity
+import android.content.ClipData
+import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
@@ -16,7 +19,13 @@ import java.io.File
  */
 object PuenteGemini {
 
-    /** Guarda una copia y abre el menú de compartir con la foto y el texto ya puestos. */
+    /**
+     * Guarda una copia y abre el menú de compartir con la foto y el texto ya puestos.
+     *
+     * Devuelve false si el dispositivo no tiene ninguna app capaz de recibir una imagen (pasa en
+     * emuladores sin apps de Google). En ese caso deja el prompt en el portapapeles para no
+     * perderlo. Un fallo aquí no puede quedarse en silencio: la pantalla lo cuenta.
+     */
     fun abrir(contexto: Context, foto: Bitmap, prompt: String): Boolean = runCatching {
         val carpeta = File(contexto.filesDir, "retoques").apply { mkdirs() }
         val archivo = File(carpeta, "gemini-${System.currentTimeMillis()}.jpg")
@@ -34,7 +43,20 @@ object PuenteGemini {
             putExtra(Intent.EXTRA_TEXT, prompt)
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         }
-        contexto.startActivity(Intent.createChooser(intent, "Abrir la foto en Gemini"))
+        val selector = Intent.createChooser(intent, "Abrir la foto en Gemini")
+        // Desde un contexto de aplicación (pruebas o servicios) hace falta NEW_TASK.
+        if (contexto !is Activity) selector.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        contexto.startActivity(selector)
         true
-    }.getOrDefault(false)
+    }.getOrElse {
+        copiarPrompt(contexto, prompt)
+        false
+    }
+
+    private fun copiarPrompt(contexto: Context, prompt: String) {
+        runCatching {
+            val portapapeles = contexto.getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            portapapeles.setPrimaryClip(ClipData.newPlainText("Prompt de la reforma", prompt))
+        }
+    }
 }

@@ -2,5 +2,7 @@
 <paths>
     <cache-path name="updates" path="updates/" />
     <cache-path name="fotos" path="fotos/" />
+    <files-path name="fotos_app" path="fotos/" />
+    <files-path name="retoques" path="retoques/" />
     <files-path name="export" path="export/" />
 </paths>

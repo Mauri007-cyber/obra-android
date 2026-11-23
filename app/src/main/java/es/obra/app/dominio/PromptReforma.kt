@@ -55,6 +55,26 @@ object PromptReforma {
         }.replace(Regex("\\s+"), " ").trim()
     }
 
+    /**
+     * Prompt de la pantalla: lo aprobado más lo que se entendió de una frase.
+     *
+     * Si la frase ya se tradujo a cambios, no se vuelve a añadir como nota: el modelo la leería
+     * dos veces (una como partida y otra como texto libre) y el resultado se desvía.
+     */
+    fun paraLaPantalla(
+        aprobados: List<Cambio>,
+        entendidos: List<Cambio>,
+        frase: String,
+        estancia: String = ""
+    ): String {
+        val extra = entendidos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
+        return para(
+            cambios = aprobados + extra,
+            frase = if (entendidos.isEmpty()) frase else "",
+            estancia = estancia
+        )
+    }
+
     private val TipoCambio.enciendeLuz: Boolean
         get() = this == TipoCambio.PUNTO_LUZ ||
             this == TipoCambio.FOCO_EMPOTRADO ||

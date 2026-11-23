@@ -101,6 +101,7 @@ fun PantallaRetoque(
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
+    val desplazamiento = rememberScrollState()
 
     var estancia by remember { mutableStateOf<EstanciaProyecto?>(null) }
     var foto by remember { mutableStateOf<Bitmap?>(null) }
@@ -135,8 +136,14 @@ fun PantallaRetoque(
     val aprobados = estancia?.visibles ?: emptyList()
     val aplicables = aprobados + entendidos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
 
-    fun promptDeLaObra(): String = PromptReforma.para(
-        cambios = aplicables,
+    // Se queda a la vista: si la imagen se genera arriba, hay que llevarla a la pantalla.
+    LaunchedEffect(resultado) {
+        if (resultado != null) desplazamiento.animateScrollTo(0)
+    }
+
+    fun promptDeLaObra(): String = PromptReforma.paraLaPantalla(
+        aprobados = aprobados,
+        entendidos = entendidos,
         frase = frase,
         estancia = estancia?.nombre.orEmpty()
     )
@@ -202,7 +209,8 @@ fun PantallaRetoque(
         aviso = if (PuenteGemini.abrir(contexto, original, prompt)) {
             "Elige Gemini, envía la foto, guarda la imagen y tráela aquí."
         } else {
-            "No se encontró una app con la que compartir la foto."
+            "Este dispositivo no tiene ninguna app que pueda recibir la foto (en un emulador " +
+                "suele faltar Gemini). He copiado el texto al portapapeles."
         }
     }
 
@@ -220,6 +228,17 @@ fun PantallaRetoque(
                 aviso = "Imagen traída de Gemini. Compárala con la original antes de enseñarla."
             }
         }
+    }
+
+    // El botón solo se apaga por un motivo concreto: se dice debajo cuál es.
+    val faltaParaGenerar = when {
+        !generador.configurado ->
+            "Falta conectar el servicio de imagen en esta copia de la app. Gemini y el " +
+                "retoque local funcionan igual."
+        foto == null -> "Falta la foto de la estancia: ponla desde el proyecto."
+        aplicables.isEmpty() ->
+            "Faltan cambios: aprueba algún trabajo o escribe qué quieres cambiar y pulsa «Entender»."
+        else -> null
     }
 
     Scaffold(
@@ -242,7 +261,7 @@ fun PantallaRetoque(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(relleno)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(desplazamiento)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
@@ -336,10 +355,9 @@ fun PantallaRetoque(
                 }
             }
 
-            if (!generador.configurado) {
+            if (faltaParaGenerar != null && !generando) {
                 Text(
-                    "Esta copia no tiene conectado el servicio de imagen gratuito. Gemini y el " +
-                        "retoque local funcionan igual.",
+                    faltaParaGenerar,
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -368,6 +386,16 @@ fun PantallaRetoque(
                 enabled = !generando,
                 modifier = Modifier.fillMaxWidth()
             ) { Text("Ya la tengo: traer la imagen") }
+
+            // Los avisos van justo aquí, pegados a los botones que los provocan: al final de la
+            // lista quedaban fuera de la pantalla y parecía que el botón no hacía nada.
+            if (aviso.isNotBlank()) {
+                Text(
+                    aviso,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
 
             Text(
                 "Al generar, esta foto se envía al servicio de imagen (Cloudflare). Al abrir " +
@@ -528,14 +556,6 @@ fun PantallaRetoque(
                         Text(cambio.linea, style = MaterialTheme.typography.bodyMedium)
                     }
                 }
-            }
-
-            if (aviso.isNotBlank()) {
-                Text(
-                    aviso,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
 
             if (resultado != null) {

@@ -97,6 +97,46 @@ class PromptReformaTest {
     }
 
     @Test
+    fun `la frase ya entendida no se repite como nota`() {
+        val prompt = PromptReforma.paraLaPantalla(
+            aprobados = emptyList(),
+            entendidos = listOf(cambio(TipoCambio.SUELO_TARIMA, "roble claro")),
+            frase = "suelo de tarima clara"
+        )
+
+        assertTrue(prompt.contains("replace the floor"))
+        assertFalse(prompt.contains("Client's note"))
+        assertFalse(prompt.contains("suelo de tarima clara"))
+    }
+
+    @Test
+    fun `la frase sin entender si viaja como nota`() {
+        val prompt = PromptReforma.paraLaPantalla(
+            aprobados = listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")),
+            entendidos = emptyList(),
+            frase = "que quede muy luminoso"
+        )
+
+        assertTrue(prompt.contains("Client's note: que quede muy luminoso."))
+    }
+
+    @Test
+    fun `junta aprobados y entendidos sin duplicar partidas`() {
+        val prompt = PromptReforma.paraLaPantalla(
+            aprobados = listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")),
+            entendidos = listOf(
+                cambio(TipoCambio.PINTURA_PLASTICA, "blanco"),
+                cambio(TipoCambio.SUELO_LAMINADO, "roble claro")
+            ),
+            frase = "paredes blancas y suelo de tarima"
+        )
+
+        assertEquals(1, prompt.split("paint the walls").size - 1)
+        assertEquals(1, prompt.split("replace the floor").size - 1)
+        assertFalse(prompt.contains("Client's note"))
+    }
+
+    @Test
     fun `nombra la estancia cuando se sabe`() {
         val prompt = PromptReforma.para(
             cambios = listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")),
