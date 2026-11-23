@@ -38,6 +38,15 @@ class FraseToleranteTest {
     }
 
     @Test
+    fun `quitar los trastos no se marca como no entendido`() {
+        val analisis = FraseACambios.analizar("quita los cachivaches que hay en medio")
+
+        assertTrue(analisis.cambios.isEmpty())
+        assertTrue(analisis.noEntendido.toString(), analisis.noEntendido.isEmpty())
+        assertTrue(FraseACambios.pideDespeje("quita los cachivaches que hay en medio"))
+    }
+
+    @Test
     fun `dice lo que no ha entendido en vez de callarse`() {
         val analisis = FraseACambios.analizar("no se, algo bonito que quede moderno")
 

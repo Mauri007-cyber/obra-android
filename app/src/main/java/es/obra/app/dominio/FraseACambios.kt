@@ -146,7 +146,9 @@ object FraseACambios {
         trozos.forEach { trozo ->
             val regla = reglaDe(trozo)
             if (regla == null) {
-                if (tieneContenido(trozo)) sobrantes.add(trozo)
+                // «quita los cachivaches» no es una partida, pero sí se usa en el prompt: no se
+                // avisa como no entendido porque se está haciendo caso de ello.
+                if (tieneContenido(trozo) && !pideDespeje(trozo)) sobrantes.add(trozo)
                 return@forEach
             }
             if (!vistos.add(regla.tipo)) return@forEach
@@ -169,6 +171,22 @@ object FraseACambios {
             noEntendido = sobrantes.distinct()
         )
     }
+
+    /**
+     * Vaciar de trastos no es una partida del catálogo (no se cobra), pero se le dice al modelo.
+     * Vive aquí para que el intérprete no lo marque como «no entendido».
+     */
+    fun pideDespeje(frase: String): Boolean {
+        val limpia = normalizar(frase.replace("\u00a0", " "))
+        return DESPEJE.any { limpia.contains(it) }
+    }
+
+    private val DESPEJE = listOf(
+        "elimina", "eliminar", "quita", "quitar", "retira", "retirar",
+        "vaciar", "vacia", "despeja", "despejar", "sin muebles",
+        "nada entre medias", "no debe haber nada", "vacio de obras", "escombros",
+        "cachivaches", "trastos", "porqueria", "bultos"
+    )
 
     /** Palabras que no cambian nada: se quitan antes de buscar parecidos. */
     private val RELLENO = setOf(

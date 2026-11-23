@@ -156,6 +156,24 @@ class PromptReformaTest {
     }
 
     @Test
+    fun `si no se cambia el suelo ni el techo se piden intactos`() {
+        val prompt = PromptReforma.para(listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")))
+        val antesDeCambiar = prompt.substringBefore("Change only")
+
+        assertTrue(antesDeCambiar, antesDeCambiar.contains("the floor"))
+        assertTrue(antesDeCambiar, antesDeCambiar.contains("the ceiling"))
+    }
+
+    @Test
+    fun `si se cambia el suelo no se pide conservarlo`() {
+        val prompt = PromptReforma.para(listOf(cambio(TipoCambio.SUELO_VINILICO, "gris")))
+        val antesDeCambiar = prompt.substringBefore("Change only")
+
+        assertFalse(antesDeCambiar, antesDeCambiar.contains("the floor"))
+        assertTrue(antesDeCambiar, antesDeCambiar.contains("the ceiling"))
+    }
+
+    @Test
     fun `sin tocar huecos se conservan puertas y ventanas`() {
         val prompt = PromptReforma.para(listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")))
 

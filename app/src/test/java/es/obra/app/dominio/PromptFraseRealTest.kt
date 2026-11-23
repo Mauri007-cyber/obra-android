@@ -30,6 +30,22 @@ class PromptFraseRealTest {
     }
 
     @Test
+    fun `sin pulsar entender la frase se traduce igual`() {
+        // Este es el fallo que se vio en el móvil: se generaba sin pasar por «Entender» y la
+        // frase viajaba como nota en español.
+        val prompt = PromptReforma.paraLaPantalla(
+            aprobados = emptyList(),
+            entendidos = emptyList(),
+            frase = frase,
+            estancia = "Salón"
+        )
+
+        assertTrue(prompt, prompt.contains("white marble kitchen island"))
+        assertTrue(prompt, prompt.contains("Remove all tools"))
+        assertFalse(prompt, prompt.contains("Client's note"))
+    }
+
+    @Test
     fun `entiende las seis partidas de la frase`() {
         val tipos = FraseACambios.interpretar(frase).map { it.tipo }
 

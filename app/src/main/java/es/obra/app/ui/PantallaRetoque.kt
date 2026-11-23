@@ -118,6 +118,7 @@ fun PantallaRetoque(
     var pedirPermiso by remember { mutableStateOf(false) }
     var restantes by remember { mutableStateOf(CuotaImagen.restantes(contexto)) }
     var refresco by remember { mutableIntStateOf(0) }
+    var verPrompt by remember { mutableStateOf(false) }
 
     val generador = remember { ClienteCloudflare() }
 
@@ -155,7 +156,19 @@ fun PantallaRetoque(
     }
 
     val aprobados = estancia?.visibles ?: emptyList()
-    val aplicables = aprobados + entendidos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
+    // Sin pulsar «Entender» también vale: la frase se lee al escribir, para que el botón de
+    // generar no dependa de un paso que se puede olvidar.
+    val deLaFrase = remember(frase, estancia?.id, estancia?.superficie) {
+        if (frase.isBlank()) emptyList()
+        else FraseACambios.analizar(
+            frase = frase,
+            superficie = estancia?.superficie ?: 0.0,
+            altura = estancia?.altura ?: 2.5
+        ).cambios
+    }
+    val entendidosEfectivos = if (entendidos.isEmpty()) deLaFrase else entendidos
+    val aplicables = aprobados +
+        entendidosEfectivos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
 
     // Se queda a la vista: si la imagen se genera arriba, hay que llevarla a la pantalla.
     LaunchedEffect(resultado) {
@@ -164,7 +177,7 @@ fun PantallaRetoque(
 
     fun promptDeLaObra(): String = PromptReforma.paraLaPantalla(
         aprobados = aprobados,
-        entendidos = entendidos,
+        entendidos = entendidosEfectivos,
         frase = frase,
         estancia = estancia?.nombre.orEmpty()
     )
@@ -453,6 +466,28 @@ fun PantallaRetoque(
                 )
             }
 
+            // Que se pueda ver exactamente qué se manda: si algo no sale, se ve el porqué.
+            if (frase.isNotBlank() || aprobados.isNotEmpty()) {
+                TextButton(onClick = { verPrompt = !verPrompt }) {
+                    Text(
+                        if (verPrompt) "Ocultar el texto que se envía"
+                        else "Ver el texto que se envía"
+                    )
+                }
+                if (verPrompt) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text(
+                            promptDeLaObra().ifBlank { "Todavía no hay nada que enviar." },
+                            modifier = Modifier.padding(12.dp),
+                            style = MaterialTheme.typography.bodyMedium
+                        )
+                    }
+                }
+            }
+
             Text(
                 "Al generar, esta foto se envía al servicio de imagen (Cloudflare). Al abrir " +
                     "Gemini, la foto y el texto van a Google. No se envía nada más: ni el " +
@@ -555,18 +590,18 @@ fun PantallaRetoque(
                 }
             }
 
-            if (entendidos.isNotEmpty()) {
+            if (entendidosEfectivos.isNotEmpty()) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            "He entendido ${entendidos.size} trabajo(s)",
+                            "He entendido ${entendidosEfectivos.size} trabajo(s)",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
-                        entendidos.forEach { cambio ->
+                        entendidosEfectivos.forEach { cambio ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     Modifier
@@ -583,7 +618,7 @@ fun PantallaRetoque(
                         TextButton(
                             onClick = {
                                 alcance.launch {
-                                    entendidos.forEach { cambio ->
+                                    entendidosEfectivos.forEach { cambio ->
                                         ProyectoRepositorio.guardar(dao, estanciaId, cambio)
                                     }
                                     entendidos = emptyList()

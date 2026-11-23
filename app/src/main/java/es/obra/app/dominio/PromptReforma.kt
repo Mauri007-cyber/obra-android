@@ -55,6 +55,9 @@ object PromptReforma {
         // puertas siguen intactas, y al contrario. Antes el modelo recibía dos órdenes contrarias.
         val tocaVentanas = visibles.any { it.tipo in VENTANAS }
         val tocaPuertas = visibles.any { it.tipo in PUERTAS }
+        // Suelo y techo también: si no se cambian y no se nombran, el modelo los reinventa.
+        val tocaSuelo = visibles.any { it.tipo.capa == Capa.SUELO }
+        val tocaTecho = visibles.any { it.tipo.capa == Capa.TECHO }
         val conservar = buildList {
             add("the camera position")
             add("the perspective")
@@ -62,6 +65,8 @@ object PromptReforma {
             add("the ceiling height")
             if (!tocaVentanas) add("the windows")
             if (!tocaPuertas) add("the doors")
+            if (!tocaSuelo) add("the floor")
+            if (!tocaTecho) add("the ceiling")
             // Si se pide vaciar, pedir a la vez «conserva los muebles» sería contradictorio.
             if (!vaciar) add("all existing furniture")
         }
@@ -72,7 +77,8 @@ object PromptReforma {
         // Lo añadido se repite: con muchas partidas el modelo tiende a olvidar el mueble nuevo,
         // que es justo lo que el cliente mira.
         val anadidos = if (objetos.isEmpty()) "" else
-            " These added items must be clearly visible: ${objetos.joinToString(", ")}."
+            " These added items must be clearly visible: ${objetos.joinToString(", ")}. " +
+                "Do not add furniture, doors or windows that are not listed."
         val vaciado = if (!vaciar) "" else
             " Remove all tools, rubble, construction debris and temporary objects; " +
                 "the room must be empty apart from the changes listed."
@@ -89,7 +95,7 @@ object PromptReforma {
     }
 
     /** El Worker rechaza prompts largos: aquí se recorta sin cortar palabras ni frases a medias. */
-    const val MAXIMO = 1200
+    const val MAXIMO = 1350
 
     private fun limitar(partes: List<String>): String {
         val salida = StringBuilder(partes.first())
@@ -114,10 +120,16 @@ object PromptReforma {
         frase: String,
         estancia: String = ""
     ): String {
-        val extra = entendidos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
+        // La frase se entiende aquí, siempre: si el usuario escribe y pulsa generar sin pasar por
+        // «Entender», antes viajaba como nota en español y el modelo la ignoraba casi entera.
+        val deLaFrase = entendidos.ifEmpty {
+            if (frase.isBlank()) emptyList()
+            else FraseACambios.analizar(frase).cambios
+        }
+        val extra = deLaFrase.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
         return para(
             cambios = aprobados + extra,
-            frase = if (entendidos.isEmpty()) frase else "",
+            frase = if (deLaFrase.isEmpty()) frase else "",
             estancia = estancia,
             colocaciones = Colocacion.enIngles(frase),
             despejar = pideDespeje(frase)
@@ -125,16 +137,7 @@ object PromptReforma {
     }
 
     /** «Elimina todo lo que aparece entre medias» no es una partida: es vaciar la habitación. */
-    fun pideDespeje(frase: String): Boolean {
-        val limpia = normalizar(frase.replace("\u00a0", " "))
-        return DESPEJE.any { limpia.contains(it) }
-    }
-
-    private val DESPEJE = listOf(
-        "elimina", "eliminar", "quita", "quitar", "retira", "retirar",
-        "vaciar", "vacia", "despeja", "despejar", "sin muebles",
-        "nada entre medias", "no debe haber nada", "vacio de obras", "escombros"
-    )
+    fun pideDespeje(frase: String): Boolean = FraseACambios.pideDespeje(frase)
 
     private val PUERTAS = setOf(
         TipoCambio.PUERTA_INTERIOR,
