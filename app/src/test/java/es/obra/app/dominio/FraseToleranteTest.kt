@@ -38,6 +38,21 @@ class FraseToleranteTest {
     }
 
     @Test
+    fun `cerrar un hueco no es poner una ventana`() {
+        val tipos = tipos("cerrar la ventana del salon y alisar")
+
+        assertTrue(tipos.toString(), tipos.contains(TipoCambio.CERRAR_HUECO))
+        assertTrue(tipos.toString(), !tipos.contains(TipoCambio.VENTANA_NUEVA))
+    }
+
+    @Test
+    fun `agrandar un hueco es cambiar su tamano`() {
+        val tipos = tipos("agrandar la ventana del dormitorio")
+
+        assertTrue(tipos.toString(), tipos.contains(TipoCambio.AMPLIAR_HUECO))
+    }
+
+    @Test
     fun `quitar los trastos no se marca como no entendido`() {
         val analisis = FraseACambios.analizar("quita los cachivaches que hay en medio")
 

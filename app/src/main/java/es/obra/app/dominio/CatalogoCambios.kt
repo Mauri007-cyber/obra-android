@@ -71,6 +71,8 @@ enum class TipoCambio(
 
     // Albañilería
     TABIQUE_NUEVO("Tabique nuevo de ladrillo", Ambito.ALBANILERIA, Unidad.M2, 45.0),
+    CERRAR_HUECO("Cerrar un hueco o ventana", Ambito.ALBANILERIA, Unidad.M2, 38.0),
+    AMPLIAR_HUECO("Cambiar el tamaño de un hueco", Ambito.ALBANILERIA, Unidad.UD, 140.0, mide = false),
     TABIQUE_PLADUR("Tabique de pladur", Ambito.ALBANILERIA, Unidad.M2, 38.0),
     AISLAMIENTO("Aislar pared (térmico y acústico)", Ambito.ALBANILERIA, Unidad.M2, 16.0),
     NIVELAR_SUELO("Nivelar el suelo con solera", Ambito.ALBANILERIA, Unidad.M2, 22.0),
@@ -158,6 +160,8 @@ enum class TipoCambio(
         get() = when (this) {
             // Pintar el techo es techo, aunque el oficio sea pintura: si no, se tiñen las paredes.
             PINTURA_TECHO -> Capa.TECHO
+            // Cerrar o agrandar un hueco sí se ve en la foto, aunque el oficio sea albañilería.
+            CERRAR_HUECO, AMPLIAR_HUECO -> Capa.HUECO
             else -> when (ambito) {
                 Ambito.SUELO -> Capa.SUELO
                 Ambito.PARED, Ambito.PINTURA -> Capa.PARED

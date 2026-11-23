@@ -64,6 +64,24 @@ object FraseACambios {
         Regla(TipoCambio.PAPEL_PINTADO, listOf("papel pintado")),
         Regla(TipoCambio.PANEL_DECORATIVO, listOf("panel decorativo", "panel")),
         Regla(TipoCambio.PINTURA_PLASTICA, listOf("pintar", "pintura", "pared", "paredes")),
+        // Antes que «ventana» y «puerta»: cerrar o agrandar un hueco no es poner una ventana.
+        Regla(
+            TipoCambio.CERRAR_HUECO,
+            listOf(
+                "cerrar el hueco", "cerrar hueco", "cerrar la ventana", "cerrar ventana",
+                "tapar el hueco", "tapar hueco", "tapar la ventana", "cegar",
+                "anular la ventana", "anular ventana"
+            )
+        ),
+        Regla(
+            TipoCambio.AMPLIAR_HUECO,
+            listOf(
+                "agrandar la ventana", "agrandar ventana", "ampliar la ventana", "ampliar ventana",
+                "agrandar la puerta", "agrandar puerta", "ampliar la puerta", "ampliar el hueco",
+                "hacer mas grande la ventana", "hacer mas grande la puerta",
+                "cambiar el tamano de la ventana", "cambiar el tamano del hueco"
+            )
+        ),
         Regla(TipoCambio.PUERTA_CORREDERA, listOf("corredera")),
         Regla(TipoCambio.PUERTA_INTERIOR, listOf("puerta")),
         Regla(

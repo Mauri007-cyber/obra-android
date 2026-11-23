@@ -151,6 +151,8 @@ object PromptReforma {
     )
 
     private val VENTANAS = setOf(
+        TipoCambio.CERRAR_HUECO,
+        TipoCambio.AMPLIAR_HUECO,
         TipoCambio.VENTANA_NUEVA,
         TipoCambio.VENTANA_OSCILO,
         TipoCambio.VENTANA_A_BALCON,
@@ -183,9 +185,13 @@ object PromptReforma {
         else -> "install a ${material(cambio)}"
     }
 
-    private fun fraseHueco(cambio: Cambio): String {
-        val material = material(cambio)
-        return "fit ${articulo(material)} $material"
+    private fun fraseHueco(cambio: Cambio): String = when (cambio.tipo) {
+        TipoCambio.CERRAR_HUECO -> "close the existing opening with masonry and plaster"
+        TipoCambio.AMPLIAR_HUECO -> "make the existing opening wider"
+        else -> {
+            val material = material(cambio)
+            "fit ${articulo(material)} $material"
+        }
     }
 
     private fun fraseObjeto(cambio: Cambio): String {
@@ -233,6 +239,8 @@ object PromptReforma {
         TipoCambio.FALSO_TECHO to "plasterboard false ceiling",
         TipoCambio.TECHO_REGISTRABLE to "modular ceiling",
         TipoCambio.TECHO_MADERA to "timber ceiling with exposed transverse beams",
+        TipoCambio.CERRAR_HUECO to "bricked-up opening",
+        TipoCambio.AMPLIAR_HUECO to "enlarged opening",
         TipoCambio.MOLDURA to "ceiling cornice",
         TipoCambio.PUERTA_INTERIOR to "interior door",
         TipoCambio.PUERTA_CORREDERA to "sliding door",

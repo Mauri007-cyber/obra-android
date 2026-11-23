@@ -39,7 +39,13 @@ data class ObraEntity(
     /** Superficie del contorno cerrado dibujado. 0 = usar largo × ancho. */
     val superficieCerrada: Double = 0.0,
     /** Precios propios de esta obra, separados por «;». Vacío = los de por defecto. */
-    val tarifas: String = ""
+    val tarifas: String = "",
+    /** Cuántos días vale el presupuesto que se envía. */
+    val validezDias: Int = 30,
+    /** Lo que se le dice al cliente al pie del presupuesto. */
+    val notasPresupuesto: String = "",
+    /** borrador | enviado | aceptado */
+    val estadoPresupuesto: String = "borrador"
 ) {
     val superficie: Double get() = largo * ancho
 
@@ -174,6 +180,12 @@ interface ObraDao {
 
     @Query("UPDATE obras SET tarifas = :tarifas WHERE id = :id")
     suspend fun guardarTarifas(id: Long, tarifas: String)
+
+    @Query(
+        "UPDATE obras SET validezDias = :dias, notasPresupuesto = :notas, " +
+            "estadoPresupuesto = :estado WHERE id = :id"
+    )
+    suspend fun guardarDatosPresupuesto(id: Long, dias: Int, notas: String, estado: String)
 
     @Query("UPDATE obras SET largo = :largo, ancho = :ancho, altura = :altura, superficieCerrada = CASE WHEN largo != :largo OR ancho != :ancho THEN 0 ELSE superficieCerrada END, metodo = CASE WHEN largo != :largo OR ancho != :ancho THEN 'manual' ELSE metodo END WHERE id = :id")
     suspend fun guardarMedidasManuales(id: Long, largo: Double, ancho: Double, altura: Double)
@@ -361,6 +373,17 @@ internal val MIGRACION_5_6 = object : Migration(5, 6) {
     }
 }
 
+/** El presupuesto gana estado, validez y notas para el cliente. */
+internal val MIGRACION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE obras ADD COLUMN validezDias INTEGER NOT NULL DEFAULT 30")
+        db.execSQL("ALTER TABLE obras ADD COLUMN notasPresupuesto TEXT NOT NULL DEFAULT ''")
+        db.execSQL(
+            "ALTER TABLE obras ADD COLUMN estadoPresupuesto TEXT NOT NULL DEFAULT 'borrador'"
+        )
+    }
+}
+
 @Database(
     entities = [
         ObraEntity::class,
@@ -369,7 +392,7 @@ internal val MIGRACION_5_6 = object : Migration(5, 6) {
         HuecoEntity::class,
         CambioEntity::class
     ],
-    version = 6,
+    version = 7,
     exportSchema = false
 )
 abstract class ObraDb : RoomDatabase() {
@@ -391,7 +414,8 @@ abstract class ObraDb : RoomDatabase() {
             ObraDb::class.java,
             "obra.db"
         ).addMigrations(
-            MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6
+            MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6,
+            MIGRACION_6_7
         ).build()
     }
 }

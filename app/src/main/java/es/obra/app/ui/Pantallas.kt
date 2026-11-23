@@ -271,6 +271,7 @@ fun PantallaInicio(
     alActualizar: () -> Unit
 ) {
     val obras by dao.observarObras().collectAsStateWithLifecycle(initialValue = emptyList())
+    var busqueda by remember { mutableStateOf("") }
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
     var avisoCopia by remember { mutableStateOf<String?>(null) }
@@ -335,6 +336,15 @@ fun PantallaInicio(
                 )
             }
         } else {
+            OutlinedTextField(
+                value = busqueda,
+                onValueChange = { busqueda = it },
+                label = { Text("Buscar obra o cliente") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+            )
             Text(
                 "Toca una obra para seguir donde lo dejaste.",
                 modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
@@ -349,7 +359,23 @@ fun PantallaInicio(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(obras, key = { it.id }) { obra ->
+                val consulta = busqueda.trim().lowercase()
+                val filtradas = obras.filter { obra ->
+                    consulta.isEmpty() ||
+                        obra.nombre.lowercase().contains(consulta) ||
+                        obra.direccion.lowercase().contains(consulta) ||
+                        obra.cliente.lowercase().contains(consulta)
+                }
+                if (filtradas.isEmpty()) {
+                    item {
+                        Text(
+                            "No hay ninguna obra que coincida con «$busqueda».",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(filtradas, key = { it.id }) { obra ->
                     FichaObra(obra = obra, alPulsar = { alAbrir(obra.id) })
                 }
             }

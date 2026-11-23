@@ -19,6 +19,7 @@ import androidx.compose.material.icons.filled.Share
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -79,11 +80,17 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     var totalCambios by remember { mutableStateOf(0) }
     var refresco by remember { mutableIntStateOf(0) }
     var editando by remember { mutableStateOf<Partida?>(null) }
+    var estadoPresupuesto by remember { mutableStateOf("borrador") }
+    var validez by remember { mutableStateOf("30") }
+    var notasCliente by remember { mutableStateOf("") }
 
     LaunchedEffect(obraId, refresco) {
         val guardada = dao.obtenerObra(obraId)
         obra = guardada
         tarifas = Tarifas.desdeTexto(guardada?.tarifas ?: "")
+        estadoPresupuesto = guardada?.estadoPresupuesto ?: "borrador"
+        validez = (guardada?.validezDias ?: 30).toString()
+        notasCliente = guardada?.notasPresupuesto.orEmpty()
         val estancias = dao.estancias(obraId)
         totalCambios = dao.cambios(obraId).size
         proyecto = guardada?.let { ProyectoRepositorio.cargar(dao, it) }
@@ -95,6 +102,24 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         val guardada = obra ?: return@LaunchedEffect
         if (Tarifas.desdeTexto(guardada.tarifas) != tarifas) {
             dao.guardarTarifas(guardada.id, tarifas.aTexto())
+        }
+    }
+
+    // Se guarda solo: escribir las notas no debe obligar a pulsar nada.
+    LaunchedEffect(obraId, estadoPresupuesto, validez, notasCliente) {
+        delay(700)
+        val guardada = obra ?: return@LaunchedEffect
+        val dias = validez.toIntOrNull()?.coerceIn(1, 365) ?: 30
+        if (guardada.estadoPresupuesto != estadoPresupuesto ||
+            guardada.validezDias != dias ||
+            guardada.notasPresupuesto != notasCliente
+        ) {
+            dao.guardarDatosPresupuesto(guardada.id, dias, notasCliente, estadoPresupuesto)
+            obra = guardada.copy(
+                estadoPresupuesto = estadoPresupuesto,
+                validezDias = dias,
+                notasPresupuesto = notasCliente
+            )
         }
     }
 
@@ -114,9 +139,19 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         alcance.launch {
             try {
                 val archivo = withContext(Dispatchers.IO) {
-                    PdfPresupuesto.generar(contexto, guardada, partidas, tarifas, base, iva, total)
+                    PdfPresupuesto.generar(
+                        contexto, guardada, partidas, tarifas, base, iva, total,
+                        estado = estadoPresupuesto,
+                        validezDias = validez.toIntOrNull() ?: 30,
+                        notas = notasCliente
+                    )
                 }
-                if (!Exportador.compartir(contexto, archivo, tipo = "application/pdf")) errorPdf = "No se pudo abrir el menú para compartir."
+                if (!Exportador.compartir(contexto, archivo, tipo = "application/pdf")) {
+                    errorPdf = "No se pudo abrir el menú para compartir."
+                } else if (estadoPresupuesto == "borrador") {
+                    // Como en la app de referencia: enviar el PDF lo pasa a «enviado».
+                    estadoPresupuesto = "enviado"
+                }
             } catch (error: Exception) {
                 errorPdf = error.message ?: "No se pudo crear el PDF."
             } finally {
@@ -251,6 +286,47 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
                     style = MaterialTheme.typography.labelLarge
                 )
             }
+
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Datos del presupuesto",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "borrador" to "Borrador",
+                    "enviado" to "Enviado",
+                    "aceptado" to "Aceptado"
+                ).forEach { (valor, etiqueta) ->
+                    FilterChip(
+                        selected = estadoPresupuesto == valor,
+                        onClick = { estadoPresupuesto = valor },
+                        label = { Text(etiqueta) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = validez,
+                onValueChange = { validez = it.filter(Char::isDigit).take(3) },
+                label = { Text("Validez (días)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = notasCliente,
+                onValueChange = { notasCliente = it },
+                label = { Text("Notas para el cliente (opcional)") },
+                placeholder = { Text("Materiales incluidos, plazos, forma de pago…") },
+                minLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
 
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = { ajustando = !ajustando }) {
