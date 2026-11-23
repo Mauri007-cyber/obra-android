@@ -86,7 +86,8 @@ class PantallaPresupuestoUiTest {
             // Un cambio pendiente no puede aparecer en el presupuesto.
             regla.onNodeWithText("Salón: Tabique de pladur").assertDoesNotExist()
             regla.onNodeWithText("TOTAL").assertExists()
-            regla.onNodeWithText(Presupuesto.euros(base)).assertExists()
+            // Con una sola partida, la base coincide con su importe: se comprueba que está.
+            assertTrue(regla.onAllNodesWithText(Presupuesto.euros(base)).fetchSemanticsNodes().isNotEmpty())
             regla.onNodeWithText(Presupuesto.euros(total)).assertExists()
             regla.onNodeWithText("12,00 m² × 10,00 €").assertExists()
         } finally {
