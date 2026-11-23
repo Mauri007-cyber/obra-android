@@ -6,10 +6,21 @@
   "compatibility_date": "2026-11-01",
   "observability": { "enabled": true },
   "ai": { "binding": "AI" },
+  // Contador global de llamadas facturables. Una sola instancia: idFromName('global').
+  "durable_objects": {
+    "bindings": [{ "name": "CUPO", "class_name": "CupoGlobal" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CupoGlobal"] }],
   "vars": {
     // FLUX.2 [klein] 4B: 4 pasos, hasta 4 imágenes de entrada, edición con prompt.
     "MODELO": "@cf/black-forest-labs/flux-2-klein-4b",
     // 1 = no llama al modelo y devuelve la misma foto. Sirve para probar la app sin gastar cupo.
-    "SIMULADO": "1"
+    "SIMULADO": "1",
+    // Sigue en 0: con 0 la ruta de pago está cerrada aunque existan secretos.
+    // Solo poner 1 tras desplegar y comprobar /salud, /cupo y los límites.
+    "PROTECCION_ACTIVA": "0",
+    // Límites del contador. No son un límite de dinero: ver DESPLEGAR.md.
+    "MAX_LLAMADAS_TOTAL": "0",
+    "MAX_LLAMADAS_USUARIO": "0"
   }
 }

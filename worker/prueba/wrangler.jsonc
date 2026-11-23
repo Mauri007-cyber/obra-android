@@ -1,0 +1,21 @@
+{
+  // Banco de pruebas: NO desplegar. La clave pública se pasa en cada ejecución con --var.
+  "name": "obra-ia-prueba",
+  "main": "entrada.js",
+  "compatibility_date": "2026-11-01",
+  "durable_objects": {
+    "bindings": [{ "name": "CUPO", "class_name": "CupoGlobal" }]
+  },
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["CupoGlobal"] }],
+  "vars": {
+    "MODELO": "@cf/black-forest-labs/flux-2-klein-4b",
+    "SIMULADO": "0",
+    "PROTECCION_ACTIVA": "1",
+    "JWT_ISSUER": "https://id.test",
+    "JWT_AUDIENCE": "obra",
+    "USUARIOS_PERMITIDOS": "ana,luis",
+    "MAX_LLAMADAS_TOTAL": "3",
+    "MAX_LLAMADAS_USUARIO": "2",
+    "JWT_CLAVE": "{}"
+  }
+}
