@@ -54,22 +54,23 @@ que no se debe tocar. Tope final: 2000 caracteres.
 Corregir una imagen generada usa la misma ruta: la app manda esa imagen y un prompt de «cambia
 solo esto». El análisis de la nueva foto protege posiciones, colores y materiales del resto.
 
-Si la visión falla, se genera igual y `descripcion` viene vacío. `?depurar=1` añade el
-`promptFinal` para comprobar qué se envió de verdad.
+Si la visión falla, se genera igual y `descripcion` viene vacío (el fallo queda en el log del
+Worker).
 
-**Propuestas.** Cuerpo: `{ dispositivo, tipo, superficie, altura, presupuesto, estancias[],
-permite[], deseo, catalogo[] }`. El catálogo lo manda la app (`clave`, `nombre`, `unidad`) y el
-modelo de texto **solo puede usar esas claves**. El Worker valida, tira lo que no existe y
-devuelve hasta 3 escenarios de 3 a 7 partidas. La app vuelve a validar, calcula los importes con
-sus precios y las deja como propuestas. `?depurar=1` devuelve el texto crudo del modelo para
-diagnosticar.
+**Propuestas.** Cuerpo: `{ dispositivo, superficie, altura, presupuesto, estancias[], permite[],
+deseo, catalogo[] }`. El catálogo lo manda la app (`clave`, `nombre`, `unidad`) y el modelo de
+texto **solo puede usar esas claves**. La app lo recorta antes de enviarlo según los chips que
+haya marcado el cliente («tirar paredes», «pintar»…): lo que no esté permitido ni siquiera llega
+al modelo, y lo que se cuele se tira al validar. El Worker devuelve hasta 3 escenarios de 3 a 7
+partidas y la app vuelve a validar, calcula los importes con sus precios y las deja como
+propuestas. Las estancias se comparan sin tildes, para que «Salón» y «Salon» no acaben como dos
+habitaciones distintas.
 
 ## Límites que conviene saber
 
 - **20 imágenes por móvil y día** (`LIMITE_DIA`): evita que un solo teléfono se coma la cuota de
   todos. Se cuenta con una huella del identificador anónimo, no con el aparato.
-- **10 tandas de propuestas por móvil y día** (`LIMITE_PROPUESTAS`), y **30 descripciones** en la
-  ruta de pruebas (`LIMITE_VISION`).
+- **10 tandas de propuestas por móvil y día** (`LIMITE_PROPUESTAS`).
 - La visión añade neuronas a cada imagen, pero sigue entrando de sobra en las 10.000 diarias.
 - La salida es 1K. El modelo puede mover algún mueble o una línea: es una vista previa, no un
   render de estudio.

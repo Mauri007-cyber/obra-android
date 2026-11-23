@@ -61,28 +61,101 @@ data class Escenario(
     }.joinToString(" · ")
 }
 
+/** Las partidas de un oficio, para no repetir la lista en cada permiso. */
+private fun tiposDe(ambito: Ambito): Set<TipoCambio> =
+    TipoCambio.entries.filter { it.ambito == ambito }.toSet()
+
+/**
+ * Lo que el cliente está dispuesto a tocar. Cada chip abre solo sus partidas: la app manda a la
+ * IA únicamente ese trozo del catálogo y después tira lo que se salga. Así «no quiero tirar
+ * paredes» se cumple de verdad, en vez de quedarse en una frase del prompt que el modelo puede
+ * ignorar.
+ */
+enum class Permiso(val etiqueta: String, val abre: Set<TipoCambio>) {
+    TIRAR_PAREDES(
+        "tirar paredes",
+        setOf(
+            TipoCambio.TABIQUE_TIRADO,
+            TipoCambio.ABRIR_HUECO,
+            TipoCambio.CERRAR_HUECO,
+            TipoCambio.AMPLIAR_HUECO
+        )
+    ),
+    MOVER_TABIQUES(
+        "mover tabiques",
+        setOf(
+            TipoCambio.TABIQUE_TIRADO,
+            TipoCambio.ABRIR_HUECO,
+            TipoCambio.CERRAR_HUECO,
+            TipoCambio.AMPLIAR_HUECO,
+            TipoCambio.TABIQUE_NUEVO,
+            TipoCambio.TABIQUE_PLADUR
+        )
+    ),
+    CAMBIAR_SUELOS(
+        "cambiar suelos",
+        tiposDe(Ambito.SUELO) + setOf(
+            TipoCambio.LEVANTAR_SUELO,
+            TipoCambio.NIVELAR_SUELO,
+            TipoCambio.RECRECIDO
+        )
+    ),
+    CAMBIAR_PUERTAS("cambiar puertas y ventanas", tiposDe(Ambito.CARPINTERIA)),
+    RENOVAR_COCINA("renovar cocina", tiposDe(Ambito.COCINA)),
+    RENOVAR_BANO("renovar baño", tiposDe(Ambito.BANO)),
+    PINTAR("pintar", tiposDe(Ambito.PINTURA)),
+    ELECTRICIDAD("electricidad", tiposDe(Ambito.ELECTRICIDAD))
+}
+
 object Propuestas {
 
     internal val json = Json {
         ignoreUnknownKeys = true
         isLenient = true
+        encodeDefaults = true
     }
 
-    /** Devuelve null si el cuerpo no es JSON o no trae ni un escenario usable. */
-    fun desdeJson(cuerpo: String): List<Escenario>? {
+    /**
+     * Trozo del catálogo que abren los chips marcados. Sin chips no se limita nada: decide la
+     * frase del cliente.
+     */
+    fun catalogoPara(permisos: Collection<String>): Set<TipoCambio>? {
+        val abiertas = permisos
+            .mapNotNull { texto ->
+                Permiso.entries.firstOrNull { it.etiqueta.equals(texto.trim(), ignoreCase = true) }
+            }
+            .flatMap { it.abre }
+            .toSet()
+        return abiertas.ifEmpty { null }
+    }
+
+    /** «Salón» y «salon» son la misma estancia: sin tildes, en minúsculas y sin espacios de más. */
+    fun normalizarNombre(texto: String): String =
+        java.text.Normalizer.normalize(texto.trim(), java.text.Normalizer.Form.NFD)
+            .replace(Regex("\\p{M}+"), "")
+            .lowercase()
+
+    /**
+     * Devuelve null si el cuerpo no es JSON o no trae ni un escenario usable. Si se pasan
+     * [permitidos], se descartan las partidas que el cliente no autorizó.
+     */
+    fun desdeJson(cuerpo: String, permitidos: Set<TipoCambio>? = null): List<Escenario>? {
         val respuesta = runCatching {
             json.decodeFromString<RespuestaPropuestasDto>(cuerpo)
         }.getOrNull() ?: return null
-        val escenarios = desdeDto(respuesta.propuestas)
+        val escenarios = desdeDto(respuesta.propuestas, permitidos)
         return escenarios.ifEmpty { null }
     }
 
-    internal fun desdeDto(lista: List<PropuestaDto>): List<Escenario> =
+    internal fun desdeDto(
+        lista: List<PropuestaDto>,
+        permitidos: Set<TipoCambio>? = null
+    ): List<Escenario> =
         lista.take(3).mapIndexedNotNull { indice, propuesta ->
             val actuaciones = propuesta.actuaciones
                 .take(8)
-                .mapNotNull { actuacion -> convertir(actuacion) }
-                .distinctBy { it.tipo to it.estancia.lowercase() }
+                .mapNotNull { actuacion -> convertir(actuacion, permitidos) }
+                .distinctBy { it.tipo to normalizarNombre(it.estancia) }
 
             if (actuaciones.size < 2) return@mapIndexedNotNull null
 
@@ -94,9 +167,10 @@ object Propuestas {
             )
         }
 
-    private fun convertir(dto: ActuacionDto): Actuacion? {
+    private fun convertir(dto: ActuacionDto, permitidos: Set<TipoCambio>?): Actuacion? {
         val tipo = runCatching { TipoCambio.valueOf(dto.tipo.trim()) }.getOrNull()
             ?: return null
+        if (permitidos != null && tipo !in permitidos) return null
         val cantidad = if (!tipo.mide) {
             1.0
         } else {

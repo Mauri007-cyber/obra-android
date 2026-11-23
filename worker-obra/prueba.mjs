@@ -20,13 +20,15 @@ function comprobar(nombre, condicion, detalle = "") {
   }
 }
 
-function entorno({ conKv = true, falloIa = "" } = {}) {
+function entorno({ conKv = true, falloIa = "", texto = "" } = {}) {
   const guardado = new Map();
   return {
     AI: {
-      async run() {
+      async run(modelo, opciones) {
         if (falloIa) throw new Error(falloIa);
-        return { image: PIXEL };
+        if (opciones?.messages) return { response: texto };
+        if (opciones?.multipart) return { image: PIXEL };
+        return { response: "" };
       }
     },
     CONTADORES: conKv
@@ -42,13 +44,46 @@ function entorno({ conKv = true, falloIa = "" } = {}) {
   };
 }
 
-function peticion(cuerpo) {
-  return new Request("https://obra.test/imagen", {
+function peticion(cuerpo, ruta = "/imagen") {
+  return new Request(`https://obra.test${ruta}`, {
     method: "POST",
     body: JSON.stringify(cuerpo),
     headers: { "content-type": "application/json" }
   });
 }
+
+const CATALOGO = [
+  { clave: "PINTURA_PLASTICA", nombre: "Pintar paredes", unidad: "m²" },
+  { clave: "PINTURA_TECHO", nombre: "Pintar el techo", unidad: "m²" },
+  { clave: "PINTURA_ANTIHUMEDAD", nombre: "Pintura antihumedad", unidad: "m²" },
+  { clave: "PAPEL_PINTADO", nombre: "Papel pintado", unidad: "m²" },
+  { clave: "RODAPIE", nombre: "Rodapié nuevo", unidad: "m" }
+];
+
+const TEXTO_PROPUESTAS = JSON.stringify({
+  propuestas: [
+    {
+      titulo: "Pintura",
+      resumen: "Renovar sin obras",
+      actuaciones: [
+        { tipo: "PINTURA_PLASTICA", estancia: "Salon", cantidad: 20, motivo: "Paredes" },
+        { tipo: "PINTURA_TECHO", estancia: "salón", cantidad: 20, motivo: "Techo" },
+        { tipo: "TABIQUE_TIRADO", estancia: "Salón", cantidad: 4, motivo: "Fuera de catálogo" },
+        { tipo: "PINTURA_PLASTICA", estancia: "Cocina", cantidad: 8, motivo: "No existe" }
+      ]
+    }
+  ]
+});
+
+const cuerpoPropuestas = () => ({
+  dispositivo: "movil-de-prueba-0001",
+  superficie: 20,
+  altura: 2.5,
+  estancias: [{ nombre: "Salón", superficie: 20 }],
+  permite: ["pintar"],
+  deseo: "",
+  catalogo: CATALOGO
+});
 
 const cuerpoValido = () => ({
   prompt: "Change only the floor to light oak laminate flooring.",
@@ -91,6 +126,7 @@ async function main() {
     ok.status === 200 && datosOk.imagen === PIXEL && datosOk.restantes === 19,
     JSON.stringify(datosOk)
   );
+  comprobar("la imagen vuelve sin análisis si la visión no dice nada", datosOk.descripcion === "");
 
   const sinKv = await worker.fetch(peticion(cuerpoValido()), entorno({ conKv: false }));
   comprobar(
@@ -123,6 +159,44 @@ async function main() {
 
   const ruta = await worker.fetch(new Request("https://obra.test/otra"), entorno());
   comprobar("ruta desconocida responde 404", ruta.status === 404);
+
+  const propuestas = await worker.fetch(
+    peticion(cuerpoPropuestas(), "/propuestas"),
+    entorno({ texto: TEXTO_PROPUESTAS })
+  );
+  const datosPropuestas = await propuestas.json();
+  const actuaciones = datosPropuestas.propuestas?.[0]?.actuaciones ?? [];
+  comprobar(
+    "propuestas: la estancia sin tilde vale y la clave ajena se tira",
+    propuestas.status === 200 &&
+      actuaciones.length === 2 &&
+      actuaciones.every((a) => a.tipo !== "TABIQUE_TIRADO" && a.estancia !== "Cocina"),
+    JSON.stringify(datosPropuestas)
+  );
+
+  const sinCatalogo = await worker.fetch(
+    peticion({ ...cuerpoPropuestas(), catalogo: [] }, "/propuestas"),
+    entorno({ texto: TEXTO_PROPUESTAS })
+  );
+  comprobar("propuestas sin catálogo responde 400", sinCatalogo.status === 400);
+
+  const conDepurar = await worker.fetch(
+    peticion(cuerpoPropuestas(), "/propuestas?depurar=1"),
+    entorno({ texto: TEXTO_PROPUESTAS })
+  );
+  comprobar(
+    "propuestas ya no devuelve texto crudo ni con depurar=1",
+    (await conDepurar.json()).bruto === undefined
+  );
+
+  const imagenDepurar = await worker.fetch(
+    peticion(cuerpoValido(), "/imagen?depurar=1"),
+    entorno()
+  );
+  comprobar(
+    "imagen ya no devuelve el prompt final ni con depurar=1",
+    (await imagenDepurar.json()).promptFinal === undefined
+  );
 
   if (fallos > 0) {
     console.log(`\n${fallos} prueba(s) fallidas`);

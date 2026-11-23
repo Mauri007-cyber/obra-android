@@ -146,16 +146,16 @@ class ClienteCloudflare(
             return corte.substringBeforeLast(' ').trimEnd() + "."
         }
 
-        /**
-         * Tamaño de salida: el lado mayor a 1024 y el otro en múltiplos de 32, que es lo que
-         * acepta el modelo. Una foto vertical no se convierte en cuadrada.
-         */
         /** Dirección exacta del servicio: la base puede venir con o sin barra final. */
         internal fun punto(url: String): String {
             val limpia = url.trim().trimEnd('/')
             return if (limpia.endsWith("/imagen")) limpia else "$limpia/imagen"
         }
 
+        /**
+         * Tamaño de salida: el lado mayor a 1024 y el otro en múltiplos de 32, que es lo que
+         * acepta el modelo. Una foto vertical no se convierte en cuadrada.
+         */
         internal fun salida(ancho: Int, alto: Int): Pair<Int, Int> {
             if (ancho <= 0 || alto <= 0) return 1024 to 768
             val mayor = maxOf(ancho, alto).toDouble()

@@ -49,24 +49,15 @@ import es.obra.app.datos.ProyectoRepositorio
 import es.obra.app.dominio.Cambio
 import es.obra.app.dominio.Escenario
 import es.obra.app.dominio.EstadoCambio
+import es.obra.app.dominio.Permiso
 import es.obra.app.dominio.Presupuesto
+import es.obra.app.dominio.Propuestas
 import es.obra.app.ia.ClientePropuestas
 import es.obra.app.ia.CuotaImagen
 import es.obra.app.ia.EstanciaGuia
 import es.obra.app.ia.PeticionPropuestas
 import es.obra.app.ia.ResultadoPropuestas
 import kotlinx.coroutines.launch
-
-private val PERMISOS = listOf(
-    "tirar paredes",
-    "mover tabiques",
-    "cambiar suelos",
-    "cambiar puertas y ventanas",
-    "renovar cocina",
-    "renovar baño",
-    "pintar",
-    "electricidad"
-)
 
 /**
  * Cuando el cliente no lo tiene claro: se marca qué se puede tocar, se cuenta la idea con sus
@@ -89,7 +80,7 @@ fun PantallaPropuestas(
 
     var obra by remember { mutableStateOf<ObraEntity?>(null) }
     var estancias by remember { mutableStateOf<List<EstanciaEntity>>(emptyList()) }
-    var permite by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var permite by remember { mutableStateOf<Set<Permiso>>(emptySet()) }
     var deseo by remember { mutableStateOf("") }
     var presupuesto by remember { mutableStateOf("") }
     var trabajando by remember { mutableStateOf(false) }
@@ -122,9 +113,9 @@ fun PantallaPropuestas(
                         else if (estancias.size == 1) actual.superficieEfectiva else 0.0
                     )
                 },
-                permite = permite.toList(),
+                permite = permite.map { it.etiqueta },
                 deseo = deseo.trim(),
-                catalogo = cliente.catalogo()
+                catalogo = cliente.catalogo(permite.map { it.etiqueta })
             )
             when (val salida = cliente.generar(peticion)) {
                 is ResultadoPropuestas.Ok -> {
@@ -140,9 +131,11 @@ fun PantallaPropuestas(
 
     fun usar(escenario: Escenario) {
         alcance.launch {
-            val porNombre = estancias.associateBy { it.nombre.trim().lowercase() }.toMutableMap()
+            val porNombre = estancias
+                .associateBy { Propuestas.normalizarNombre(it.nombre) }
+                .toMutableMap()
             for (actuacion in escenario.actuaciones) {
-                val clave = actuacion.estancia.trim().lowercase()
+                val clave = Propuestas.normalizarNombre(actuacion.estancia)
                 val estancia = porNombre[clave] ?: run {
                     val nombre = actuacion.estancia.trim().ifBlank { "Estancia" }
                     val nueva = EstanciaEntity(
@@ -151,7 +144,7 @@ fun PantallaPropuestas(
                         superficie = if (estancias.size == 1) obra?.superficieEfectiva ?: 0.0 else 0.0
                     )
                     val id = dao.insertarEstancia(nueva)
-                    nueva.copy(id = id).also { porNombre[nombre.lowercase()] = it }
+                    nueva.copy(id = id).also { porNombre[Propuestas.normalizarNombre(nombre)] = it }
                 }
                 ProyectoRepositorio.guardar(
                     dao,
@@ -200,8 +193,8 @@ fun PantallaPropuestas(
             )
             Spacer(Modifier.height(6.dp))
             Text(
-                "Marca lo que se puede tocar y, si quieres, cuéntalo con tus palabras. " +
-                    "Las partidas entran como propuestas: no se aprueba nada solo.",
+                "Marca lo que se puede tocar: la IA solo propondrá esas partidas. Si quieres, " +
+                    "cuéntalo con tus palabras. Nada entra en la obra hasta que elijas un escenario.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -210,7 +203,7 @@ fun PantallaPropuestas(
             Text("¿Qué estás dispuesto a hacer?", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
             Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                PERMISOS.chunked(2).forEach { fila ->
+                Permiso.entries.chunked(2).forEach { fila ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         fila.forEach { opcion ->
                             FilterChip(
@@ -219,7 +212,7 @@ fun PantallaPropuestas(
                                     permite = if (opcion in permite) permite - opcion
                                     else permite + opcion
                                 },
-                                label = { Text(opcion) }
+                                label = { Text(opcion.etiqueta) }
                             )
                         }
                     }

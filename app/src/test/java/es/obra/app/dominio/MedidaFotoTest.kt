@@ -11,8 +11,8 @@ class MedidaFotoTest {
     @Test
     fun `una referencia de un metro que ocupa 100 pixeles da un centimetro por pixel`() {
         val escala = MedidaFoto.metrosPorPixel(
-            MedidaFoto.Punto(0.0, 0.0),
-            MedidaFoto.Punto(100.0, 0.0),
+            Punto(0.0, 0.0),
+            Punto(100.0, 0.0),
             1.0
         )
 
@@ -24,10 +24,10 @@ class MedidaFotoTest {
     fun `un cuadrado de 300 por 200 pixeles con esa escala son 6 metros`() {
         val escala = 0.01
         val poligono = listOf(
-            MedidaFoto.Punto(0.0, 0.0),
-            MedidaFoto.Punto(300.0, 0.0),
-            MedidaFoto.Punto(300.0, 200.0),
-            MedidaFoto.Punto(0.0, 200.0)
+            Punto(0.0, 0.0),
+            Punto(300.0, 0.0),
+            Punto(300.0, 200.0),
+            Punto(0.0, 200.0)
         )
 
         assertEquals(6.0, MedidaFoto.area(poligono, escala), 1e-9)
@@ -37,12 +37,12 @@ class MedidaFotoTest {
     fun `una habitacion en L mide la suma, no el rectangulo que la envuelve`() {
         val escala = 0.02
         val ele = listOf(
-            MedidaFoto.Punto(0.0, 0.0),
-            MedidaFoto.Punto(100.0, 0.0),
-            MedidaFoto.Punto(100.0, 50.0),
-            MedidaFoto.Punto(50.0, 50.0),
-            MedidaFoto.Punto(50.0, 100.0),
-            MedidaFoto.Punto(0.0, 100.0)
+            Punto(0.0, 0.0),
+            Punto(100.0, 0.0),
+            Punto(100.0, 50.0),
+            Punto(50.0, 50.0),
+            Punto(50.0, 100.0),
+            Punto(0.0, 100.0)
         )
 
         // 5000 + 2500 px² = 7500 px² → 3 m² con 0.02 m/px.
@@ -51,13 +51,13 @@ class MedidaFotoTest {
 
     @Test
     fun `sin referencia valida no hay superficie`() {
-        val punto = MedidaFoto.Punto(10.0, 10.0)
+        val punto = Punto(10.0, 10.0)
 
         assertNull(MedidaFoto.metrosPorPixel(punto, punto, 1.0))
-        assertNull(MedidaFoto.metrosPorPixel(punto, MedidaFoto.Punto(50.0, 10.0), 0.0))
+        assertNull(MedidaFoto.metrosPorPixel(punto, Punto(50.0, 10.0), 0.0))
         assertEquals(
             0.0,
-            MedidaFoto.area(listOf(punto, MedidaFoto.Punto(20.0, 20.0)), 0.01),
+            MedidaFoto.area(listOf(punto, Punto(20.0, 20.0)), 0.01),
             1e-9
         )
     }
@@ -66,13 +66,13 @@ class MedidaFotoTest {
     fun `el atajo de la pantalla coincide con el calculo a mano`() {
         val area = MedidaFoto.areaConReferencia(
             poligono = listOf(
-                MedidaFoto.Punto(0.0, 0.0),
-                MedidaFoto.Punto(200.0, 0.0),
-                MedidaFoto.Punto(200.0, 100.0),
-                MedidaFoto.Punto(0.0, 100.0)
+                Punto(0.0, 0.0),
+                Punto(200.0, 0.0),
+                Punto(200.0, 100.0),
+                Punto(0.0, 100.0)
             ),
-            referenciaA = MedidaFoto.Punto(0.0, 0.0),
-            referenciaB = MedidaFoto.Punto(100.0, 0.0),
+            referenciaA = Punto(0.0, 0.0),
+            referenciaB = Punto(100.0, 0.0),
             metrosDeLaReferencia = 0.8
         )
 

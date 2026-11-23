@@ -59,6 +59,7 @@ import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import es.obra.app.dominio.Cifra
 import es.obra.app.dominio.MedidaFoto
+import es.obra.app.dominio.Punto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -341,13 +342,13 @@ fun PantallaMedirFoto(alVolver: () -> Unit, alAplicar: (Double) -> Unit) {
                                     aviso = "Marca al menos tres esquinas del suelo."
                                 } else {
                                     val calculada = MedidaFoto.metrosPorPixel(
-                                        MedidaFoto.Punto(a.x.toDouble(), a.y.toDouble()),
-                                        MedidaFoto.Punto(b.x.toDouble(), b.y.toDouble()),
+                                        Punto(a.x.toDouble(), a.y.toDouble()),
+                                        Punto(b.x.toDouble(), b.y.toDouble()),
                                         valor
                                     )?.let { escala ->
                                         MedidaFoto.area(
                                             poligono.map {
-                                                MedidaFoto.Punto(it.x.toDouble(), it.y.toDouble())
+                                                Punto(it.x.toDouble(), it.y.toDouble())
                                             },
                                             escala
                                         )

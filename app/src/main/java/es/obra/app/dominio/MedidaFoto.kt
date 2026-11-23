@@ -15,8 +15,6 @@ import kotlin.math.hypot
  */
 object MedidaFoto {
 
-    data class Punto(val x: Double, val y: Double)
-
     fun distancia(a: Punto, b: Punto): Double = hypot(b.x - a.x, b.y - a.y)
 
     /** Metros reales que mide cada píxel de la foto. */

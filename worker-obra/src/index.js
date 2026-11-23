@@ -85,20 +85,13 @@ async function imagen(request, env) {
   // Analizar la habitación ANTES de tocarla: así el modelo respeta la posición de puertas y
   // ventanas, el suelo, el techo y lo que no se ha pedido cambiar. Si la visión falla, se sigue
   // sin análisis: la imagen no puede depender de ella.
-  const vista = await describir(env, bytes);
-  const descripcion = vista.texto;
+  const descripcion = await describir(env, bytes);
   const promptFinal = armarPrompt(prompt, descripcion);
-  const depurar = new URL(request.url).searchParams.get("depurar") === "1";
 
   try {
     const imagen = await generar(env, promptFinal, bytes, datos?.ancho, datos?.alto);
     if (!imagen) return json({ error: "El modelo no devolvió imagen" }, 502);
-    return json({
-      imagen,
-      descripcion,
-      restantes,
-      ...(depurar ? { promptFinal, visionError: vista.error } : {})
-    });
+    return json({ imagen, descripcion, restantes });
   } catch (error) {
     const texto = String(error?.message ?? error);
     if (/neuron|quota|capacity|429|rate.?limit/i.test(texto)) {
@@ -115,7 +108,6 @@ const ETIQUETAS = ["FLOOR", "WALLS", "CEILING", "OPENINGS", "FIXED", "VIEWPOINT"
  * modelo mueva una puerta o ponga la ventana en otra pared al generar.
  */
 async function describir(env, bytes) {
-  let error = "";
   const general = await correrVision(
     env,
     bytes,
@@ -129,8 +121,7 @@ async function describir(env, bytes) {
       "FIXED: fixed elements (radiators, island, fitted furniture, sockets) and which wall\n" +
       "VIEWPOINT: camera height and angle\n" +
       "Write unknown when something is not visible. No advice, no people, no extra text.",
-    220,
-    (mensaje) => { error = mensaje; }
+    220
   );
 
   let analisis = ordenarAnalisis(general);
@@ -145,8 +136,7 @@ async function describir(env, bytes) {
         "left wall, on the right wall and on the back wall: doors, windows, radiators, fixed " +
         "furniture, each with its colour and material. Start with the word LAYOUT. " +
         "Do not describe the floor, the walls or the ceiling in general. No advice, no people.",
-      130,
-      (mensaje) => { error = error || mensaje; }
+      130
     );
     const limpio = layout.replace(/\s+/g, " ").replace(/^\W*LAYOUT\W*/i, "").trim();
     if (limpio.length > 8) {
@@ -157,11 +147,11 @@ async function describir(env, bytes) {
     }
   }
 
-  return { texto: analisis, error: analisis ? "" : error };
+  return analisis;
 }
 
 /** Una llamada al modelo de visión; devuelve el texto o "" sin lanzar. */
-async function correrVision(env, bytes, prompt, maxTokens, alFallar) {
+async function correrVision(env, bytes, prompt, maxTokens) {
   try {
     const salida = await env.AI.run(MODELO_VISION, {
       image: Array.from(bytes),
@@ -171,7 +161,8 @@ async function correrVision(env, bytes, prompt, maxTokens, alFallar) {
     });
     return String(salida?.response ?? salida?.description ?? salida?.result?.response ?? "");
   } catch (error) {
-    alFallar?.(String(error?.message ?? error).slice(0, 300));
+    // Sin análisis se genera igual: la imagen no puede depender de la visión.
+    console.warn("visión:", String(error?.message ?? error).slice(0, 300));
     return "";
   }
 }
@@ -271,7 +262,8 @@ async function propuestas(request, env) {
   const catalogo = Array.isArray(datos?.catalogo) ? datos.catalogo.slice(0, 120) : [];
 
   if (dispositivo.length < 8) return json({ error: "Falta el identificador del móvil" }, 400);
-  if (catalogo.length < 5) return json({ error: "Falta el catálogo de partidas" }, 400);
+  // Con los chips marcados el catálogo puede ser pequeño: basta con que quepan dos partidas.
+  if (catalogo.length < 2) return json({ error: "Falta el catálogo de partidas" }, 400);
   if (deseo.length < 4 && permite.length === 0) {
     return json({ error: "Cuenta al menos qué se quiere conseguir" }, 400);
   }
@@ -285,7 +277,6 @@ async function propuestas(request, env) {
 
   const claves = new Set(catalogo.map((c) => String(c?.clave ?? "")));
   const entrada = {
-    tipo_de_obra: String(datos?.tipo ?? "piso").slice(0, 40),
     superficie_total_m2: numero(datos?.superficie),
     altura_m: numero(datos?.altura, 2.5),
     presupuesto_aproximado_eur: numero(datos?.presupuesto, 0),
@@ -299,21 +290,13 @@ async function propuestas(request, env) {
     const texto = await pedirTexto(env, entrada);
     const objeto = extraerJson(texto);
     const limpias = validar(objeto, claves, estancias);
-    // Para depurar desde el navegador: /propuestas?depurar=1 devuelve lo que dijo el modelo.
-    const bruto = new URL(request.url).searchParams.get("depurar") === "1"
-      ? { bruto: String(texto).slice(0, 4000) }
-      : {};
     if (limpias.length === 0) {
       return json(
-        {
-          error: "La IA no devolvió propuestas utilizables. Prueba otra vez.",
-          restantes,
-          ...bruto
-        },
+        { error: "La IA no devolvió propuestas utilizables. Prueba otra vez.", restantes },
         502
       );
     }
-    return json({ propuestas: limpias, restantes, ...bruto });
+    return json({ propuestas: limpias, restantes });
   } catch (error) {
     const mensaje = String(error?.message ?? error);
     if (/neuron|quota|capacity|429|rate.?limit/i.test(mensaje)) {
@@ -330,13 +313,16 @@ async function pedirTexto(env, entrada) {
   ];
   const opciones = { messages: mensajes, max_tokens: 2200, temperature: 0.7 };
 
-  let salida;
   try {
-    salida = await env.AI.run(MODELO_TEXTO, opciones);
-  } catch {
-    salida = await env.AI.run(MODELO_TEXTO_RESPALDO, opciones);
+    return textoDe(await env.AI.run(MODELO_TEXTO, opciones));
+  } catch (error) {
+    // Si lo que falta es cuota o capacidad, el modelo pequeño tampoco va a poder: se sube el
+    // error tal cual en vez de hacer esperar al albañil una segunda llamada perdida.
+    if (/neuron|quota|capacity|429|rate.?limit/i.test(String(error?.message ?? error))) {
+      throw error;
+    }
+    return textoDe(await env.AI.run(MODELO_TEXTO_RESPALDO, opciones));
   }
-  return textoDe(salida);
 }
 
 /**
@@ -370,7 +356,7 @@ function validar(objeto, claves, estancias) {
     ? objeto
     : (objeto?.response && typeof objeto.response === "object" ? objeto.response : objeto);
   const lista = Array.isArray(raiz?.propuestas) ? raiz.propuestas : [];
-  const nombres = new Set(estancias.map((e) => String(e?.nombre ?? e).trim().toLowerCase()));
+  const nombres = new Set(estancias.map((e) => nombreClave(e?.nombre ?? e)));
 
   return lista
     .slice(0, 3)
@@ -381,7 +367,7 @@ function validar(objeto, claves, estancias) {
           const tipo = String(a?.tipo ?? "").trim();
           if (!claves.has(tipo)) return null;
           const estancia = String(a?.estancia ?? "").trim().slice(0, 40);
-          if (nombres.size > 0 && !nombres.has(estancia.toLowerCase())) return null;
+          if (nombres.size > 0 && !nombres.has(nombreClave(estancia))) return null;
           const cantidad = numero(a?.cantidad, 1);
           return {
             tipo,
@@ -398,7 +384,17 @@ function validar(objeto, claves, estancias) {
         actuaciones
       };
     })
-    .filter((p) => p.titulo && p.actuaciones.length >= 2);
+    // Sin título no se tira el escenario: la app lo numera como «Propuesta A».
+    .filter((p) => p.actuaciones.length >= 2);
+}
+
+/** «Salón» y «Salon» son la misma estancia: sin tildes y en minúsculas. */
+function nombreClave(texto) {
+  return String(texto ?? "")
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .trim()
+    .toLowerCase();
 }
 
 /* ------------------------------------------------------------------ */

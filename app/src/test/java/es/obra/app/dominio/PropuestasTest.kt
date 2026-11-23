@@ -121,6 +121,50 @@ class PropuestasTest {
     }
 
     @Test
+    fun `los chips abren solo sus partidas y sin chips no se limita nada`() {
+        val bano = Propuestas.catalogoPara(setOf("renovar baño"))!!
+
+        assertTrue(TipoCambio.PLATO_DUCHA in bano)
+        assertTrue(TipoCambio.PINTURA_TECHO !in bano)
+        assertTrue(TipoCambio.TABIQUE_TIRADO !in bano)
+        assertNull(Propuestas.catalogoPara(emptySet()))
+        assertNull(Propuestas.catalogoPara(setOf("poner un jacuzzi")))
+    }
+
+    @Test
+    fun `una partida que el cliente no autorizo no entra aunque el modelo la devuelva`() {
+        val cuerpo = """
+            {"propuestas":[{"titulo":"Pintura","actuaciones":[
+              {"tipo":"PINTURA_PLASTICA","estancia":"Salón","cantidad":20},
+              {"tipo":"TABIQUE_TIRADO","estancia":"Salón","cantidad":6},
+              {"tipo":"PINTURA_TECHO","estancia":"Salón","cantidad":20}
+            ]}]}
+        """.trimIndent()
+
+        val escenario = Propuestas.desdeJson(cuerpo, Propuestas.catalogoPara(setOf("pintar")))!!
+            .single()
+
+        assertEquals(2, escenario.actuaciones.size)
+        assertTrue(escenario.actuaciones.none { it.tipo == TipoCambio.TABIQUE_TIRADO })
+    }
+
+    @Test
+    fun `la estancia se reconoce con o sin tildes y no se duplica`() {
+        assertEquals("salon", Propuestas.normalizarNombre("  Salón "))
+        val cuerpo = """
+            {"propuestas":[{"titulo":"Paredes","actuaciones":[
+              {"tipo":"PINTURA_PLASTICA","estancia":"Salón","cantidad":10},
+              {"tipo":"PINTURA_PLASTICA","estancia":"salon","cantidad":12},
+              {"tipo":"PINTURA_TECHO","estancia":"Salón","cantidad":10}
+            ]}]}
+        """.trimIndent()
+
+        val escenario = Propuestas.desdeJson(cuerpo)!!.single()
+
+        assertEquals(2, escenario.actuaciones.size)
+    }
+
+    @Test
     fun `un cuerpo que no es json o viene vacio no rompe nada`() {
         assertNull(Propuestas.desdeJson("no soy json"))
         assertNull(Propuestas.desdeJson("""{"propuestas":[]}"""))

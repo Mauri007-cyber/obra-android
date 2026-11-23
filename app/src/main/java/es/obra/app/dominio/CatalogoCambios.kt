@@ -111,7 +111,7 @@ enum class TipoCambio(
     PUERTA_BLINDADA("Puerta blindada", Ambito.CARPINTERIA, Unidad.UD, 850.0, listOf("blanca", "roble", "negra"), mide = false),
     VENTANA_NUEVA("Ventana nueva", Ambito.CARPINTERIA, Unidad.UD, 350.0, listOf("aluminio blanco", "aluminio negro", "PVC"), mide = false),
     VENTANA_OSCILO("Ventana oscilobatiente", Ambito.CARPINTERIA, Unidad.UD, 460.0, listOf("aluminio blanco", "aluminio negro", "aluminio imitación madera"), mide = false),
-    VENTANA_A_BALCON("Ventana converted en puerta balcón", Ambito.CARPINTERIA, Unidad.UD, 700.0),
+    VENTANA_A_BALCON("Ventana convertida en puerta balcón", Ambito.CARPINTERIA, Unidad.UD, 700.0),
     PERSIANA("Persiana nueva", Ambito.CARPINTERIA, Unidad.UD, 180.0, listOf("aluminio", "PVC"), mide = false),
     LUCERNARIO("Lucernario o ventana de tejado", Ambito.CARPINTERIA, Unidad.UD, 900.0),
 
