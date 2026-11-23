@@ -84,7 +84,6 @@ sealed interface Pantalla {
     data class Plano(val id: Long, val estanciaId: Long? = null) : Pantalla
     data class Visual(val id: Long) : Pantalla
     data class Presupuesto(val id: Long) : Pantalla
-    data class Retoque(val id: Long, val estanciaId: Long? = null) : Pantalla
     data class ObraFinal(val id: Long) : Pantalla
     data object Actualizar : Pantalla
 }
@@ -132,7 +131,6 @@ fun AppObra() {
             alPlano = { pantalla = Pantalla.Plano(actual.id) },
             alVisual = { pantalla = Pantalla.Visual(actual.id) },
             alPresupuesto = { pantalla = Pantalla.Presupuesto(actual.id) },
-            alRetoque = { pantalla = Pantalla.Retoque(actual.id) },
             alProyecto = { pantalla = Pantalla.ObraFinal(actual.id) },
             alActualizar = { pantalla = Pantalla.Actualizar }
         )
@@ -173,18 +171,10 @@ fun AppObra() {
             alVolver = { pantalla = Pantalla.Obra(actual.id) }
         )
 
-        is Pantalla.Retoque -> PantallaRetoque(
-            obraId = actual.id,
-            estanciaId = actual.estanciaId,
-            dao = dao,
-            alVolver = { pantalla = if (actual.estanciaId != null) Pantalla.ObraFinal(actual.id) else Pantalla.Obra(actual.id) }
-        )
-
         is Pantalla.ObraFinal -> PantallaObraFinal(
             obraId = actual.id,
             dao = dao,
             alVolver = { pantalla = Pantalla.Obra(actual.id) },
-            alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) },
             alPlano = { estanciaId -> pantalla = Pantalla.Plano(actual.id, estanciaId) }
         )
 
@@ -469,7 +459,6 @@ fun PantallaObra(
     alPlano: () -> Unit,
     alVisual: () -> Unit,
     alPresupuesto: () -> Unit,
-    alRetoque: () -> Unit,
     alProyecto: () -> Unit,
     alActualizar: () -> Unit
 ) {
@@ -514,7 +503,6 @@ fun PantallaObra(
                 alPlano,
                 alVisual,
                 alPresupuesto,
-                alRetoque,
                 alProyecto,
                 Modifier.padding(relleno)
             )
@@ -530,7 +518,6 @@ private fun ContenidoObra(
     alPlano: () -> Unit,
     alVisual: () -> Unit,
     alPresupuesto: () -> Unit,
-    alRetoque: () -> Unit,
     alProyecto: () -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -744,15 +731,6 @@ private fun ContenidoObra(
                 .height(60.dp)
         ) {
             Text("Presupuesto", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = alRetoque,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Retoque con IA (foto)")
         }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(

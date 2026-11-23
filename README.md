@@ -1,11 +1,11 @@
 # Obra
 
 App Android para medir una estancia, sacar el plano, presupuestar una reforma y **enseñar la
-obra terminada** al cliente. Sin cuenta ni nube obligatoria para las funciones locales; los servicios externos pueden tener coste.
+obra terminada** al cliente. **Es 100 % gratuita**: no hay cuentas, no hay nube obligatoria y no
+se llama a ningún servicio de pago.
 
-- Replanteo del producto: [PLAN-OBRA-COMPLETA.md](PLAN-OBRA-COMPLETA.md)
+- Planteamiento del producto: [PLAN-OBRA-COMPLETA.md](PLAN-OBRA-COMPLETA.md)
 - Hoja de ruta y estado: [ROADMAP.md](ROADMAP.md)
-- Intermediario de IA: [worker/DESPLEGAR.md](worker/DESPLEGAR.md)
 
 ## Estado: 0.9.4
 
@@ -13,10 +13,12 @@ obra terminada** al cliente. Sin cuenta ni nube obligatoria para las funciones l
   una lista de cambios elegidos de un catálogo de más de 45 partidas por oficio.
 - **Evaluación del cliente**: cada cambio se aprueba, se deja pendiente o se descarta. Lo
   aprobado es lo que cuenta para el dinero y para lo que se enseña.
-- **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia; todavía no genera una imagen de la obra terminada.
-- **IA opcional**: se puede preparar un retoque desde una estancia con su foto, medidas y cambios visibles aprobados, además de instrucciones editables. La integración real del modelo no está habilitada ni validada; las imágenes generadas no garantizan respetar medidas o geometría.
-- La IA **nunca** está en el camino crítico: apagada por defecto y sin claves en el APK.
-- **IA y recorte remotos bloqueados por defecto:** el Worker ya tiene la integración completa de identidad ES256 y cuota global en un único Durable Object, probada en workerd, pero `PROTECCION_ACTIVA=0` la mantiene cerrada hasta configurar un proveedor de identidad real y comprobar el gasto. La simulación devuelve la foto original.
+- **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia.
+  No se genera una imagen de la obra terminada.
+- **Sin IA ni servicios de pago.** La app no envía fotos ni llama a ningún modelo: medir,
+  dibujar el plano, presupuestar, el PDF, las copias y el resumen se calculan en el móvil.
+  Todo funciona sin conexión y sin coste.
+- La única conexión de red es la comprobación opcional de actualizaciones en GitHub.
 
 ## Distribución y actualizaciones
 
@@ -41,24 +43,25 @@ Todas las versiones deben ir firmadas con la misma clave. La del proyecto está 
   (`$HOME/obra-keys/obra-release.jks` y `keystore.properties`). **Si se pierde, no se puede
 actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copia segura de la clave y de los datos.
 
+## Sin servicios de pago
+
+La app no incluye ningún cliente de IA, ni claves, ni direcciones de servicios externos. Se
+retiraron la generación de imágenes y el recorte de fondo porque dependían de servicios que
+pueden facturar, y el requisito es que la app sea gratuita para siempre. Si en el futuro se
+añade algo opcional, tendrá que ser gratuito, funcionar sin cuenta y no estar nunca en el
+camino crítico.
+
 ## Limitaciones importantes
 
 - No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Las pruebas instrumentadas se ejecutan en un emulador Android (API 35): restauran una copia con foto, planos y presupuesto, y recorren las pantallas de presupuesto, plano y copia con una base de datos en memoria. Faltan pruebas entre dispositivos, con fotos reales y de la cámara/AR.
 - Cada estancia permite editar su superficie, altura y plano. El presupuesto incluye únicamente cambios aprobados por estancia y exige cantidades y precios válidos; sin aprobaciones no genera partidas. Hay que comprobar las medidas y los precios en obra.
 - La APK de depuración usa el identificador `es.obra.app.prueba`: se instala como una app distinta, sin acceso a los datos ni a las actualizaciones de la versión normal.
 - Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. La lectura comprueba la integridad del ZIP y que las fotos puedan decodificarse. Una prueba instrumentada ha pasado en emulador Android con datos de prueba; no se ha probado la restauración entre dispositivos con datos reales. No borres los originales basándote en esta copia. La exportación antigua `.obra` sigue sin fotos y no es restaurable.
-- Las llamadas de pago del Worker están bloqueadas por defecto. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla. La verificación de identidad y la cuota global están implementadas y probadas en workerd, pero falta el proveedor de identidad real y comprobar el coste facturado antes de abrirlas; ver `worker/DESPLEGAR.md`.
 - El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.
-
-## Intermediario de IA
-
-Las llamadas de pago están desactivadas por defecto; consulta [worker/DESPLEGAR.md](worker/DESPLEGAR.md) antes de desplegar. La protección (token ES256 + cuota global atómica) está integrada y cubierta por pruebas reales en workerd, pero sin proveedor de identidad ni límite de dinero comprobado no se debe abrir. El script de Windows aún no está probado en un equipo real.
 
 ## Pruebas
 
 ```bash
-npm --prefix worker test              # lógica, handler, configuración y pipeline de la IA
-npm --prefix worker run test:workerd  # Durable Object, cuota global y concurrencia en workerd
 scripts/build.sh :app:testDebugUnitTest
 scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositivo conectado
 ```
@@ -66,4 +69,3 @@ scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositiv
 Las pruebas instrumentadas de `app/src/androidTest` cubren la restauración con foto, los planos
 por estancia, el presupuesto (solo aprobados, totales y bloqueo de precios inválidos) y las
 pantallas de copia. Se ejecutan en el emulador de GitHub Actions en cada subida a `main`.
-```

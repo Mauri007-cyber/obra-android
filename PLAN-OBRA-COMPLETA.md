@@ -1,5 +1,8 @@
 # Obra completa: el replanteo
 
+> **Decisión de producto (23-11-2026):** la app es 100 % gratuita. Se han retirado la IA
+> remota (FLUX), el recorte de fondo y su Worker porque podían generar coste. Este
+> documento se conserva como histórico de ideas descartadas.
 > De «una foto con un prompt» a **una obra entera modelada, evaluada y enseñable**.
 
 ## 1. Por qué el enfoque anterior no llegaba

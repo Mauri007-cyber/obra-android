@@ -66,7 +66,6 @@ import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.unit.dp
@@ -83,7 +82,6 @@ import es.obra.app.dominio.Cifra
 import es.obra.app.dominio.EstadoCambio
 import es.obra.app.dominio.EstanciaProyecto
 import es.obra.app.dominio.Proyecto
-import es.obra.app.dominio.PromptEstancia
 import es.obra.app.dominio.TipoCambio
 import java.io.File
 import kotlinx.coroutines.Dispatchers
@@ -99,7 +97,7 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoque: (Long) -> Unit, alPlano: (Long) -> Unit) {
+fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alPlano: (Long) -> Unit) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
 
@@ -226,7 +224,6 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
                                 recargar()
                             }
                         },
-                        alRetoque = { alRetoque(estancia.id) },
                         alMedir = { midiendo = estancia },
                         alPlano = { alPlano(estancia.id) },
                         alPonerFoto = {
@@ -241,7 +238,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alRetoqu
                 item {
                     Text(
                         "Una obra puede tener las estancias que haga falta, y cada una tantos " +
-                            "cambios como hagan falta. Para el retoque también puedes escribir con tus propias palabras.",
+                            "cambios como hagan falta. Lo aprobado es lo que entra en el presupuesto y en el resumen.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -386,7 +383,6 @@ private fun TarjetaEstancia(
     alCambiarEstado: (Cambio, EstadoCambio) -> Unit,
     alBorrar: (Cambio) -> Unit,
     alPonerFoto: () -> Unit,
-    alRetoque: () -> Unit,
     alMedir: () -> Unit,
     alPlano: () -> Unit
 ) {
@@ -468,9 +464,6 @@ private fun TarjetaEstancia(
             }
             OutlinedButton(onClick = alPlano, modifier = Modifier.fillMaxWidth()) {
                 Text("Abrir plano de esta estancia")
-            }
-            OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
-                Text("Preparar retoque con esta estancia")
             }
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = alAnadir, modifier = Modifier.weight(1f)) {
@@ -924,21 +917,6 @@ private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
                 ) { Text("Volver al proyecto") }
             }
         }
-    }
-}
-
-/** Lo que se le pediría al modelo para esta estancia, si algún día se usa. */
-@Composable
-fun TextoDelPrompt(estancia: EstanciaProyecto, modifier: Modifier = Modifier) {
-    val texto = remember(estancia) { PromptEstancia.componer(estancia) }
-    if (texto.isNotBlank()) {
-        Text(
-            texto,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = modifier,
-            textAlign = TextAlign.Start
-        )
     }
 }
 

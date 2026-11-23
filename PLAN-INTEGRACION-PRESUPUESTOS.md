@@ -1,5 +1,8 @@
 # Integración de la PWA de presupuestos
 
+> **Decisión de producto (23-11-2026):** la app es 100 % gratuita. Se han retirado la IA
+> remota (FLUX), el recorte de fondo y su Worker porque podían generar coste. Este
+> documento se conserva como histórico de ideas descartadas.
 Estado: **analizada y extraída** del zip `presupuestos-obra-codigo.zip` (136 KB, publicado en el repo).
 La vista previa navegable está en `preview/` (ver el final).
 
@@ -102,7 +105,7 @@ Funciona de verdad:
 
 Los datos son de ejemplo (Carmen Ruiz, 2026-001). El zip y lo extraído en `pwa/` se pueden borrar cuando valides la vista previa; nada de la app depende de ellos.
 
-Después se añadieron tres pantallas de fotorrealismo sobre la foto real (`1 · Foto y superficies`, `2 · Materiales y luces`, `3 · Retoque con IA`). Su plan técnico y sus costes están en [PLAN-FOTORREALISMO.md](PLAN-FOTORREALISMO.md).
+Las tres pantallas de fotorrealismo sobre la foto real (`1 · Foto y superficies`, `2 · Materiales y luces`, `3 · Retoque con IA`) se descartaron al retirar la IA de pago: la app es 100 % gratuita y no llama a ningún servicio externo.
 
 ## 8. Tres decisiones que necesito de ti
 

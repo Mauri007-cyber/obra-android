@@ -269,7 +269,6 @@ class CopiaObraUiTest {
                         alPlano = {},
                         alVisual = {},
                         alPresupuesto = {},
-                        alRetoque = {},
                         alProyecto = {},
                         alActualizar = {}
                     )
