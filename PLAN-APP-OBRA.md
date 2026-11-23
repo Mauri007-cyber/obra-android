@@ -1,5 +1,8 @@
 # Plan de producto — "Obra" (nombre provisional)
 
+> **Decisión de producto (23-11-2026):** la app es 100 % gratuita. Se han retirado la IA
+> remota (FLUX), el recorte de fondo y su Worker porque podían generar coste. Este
+> documento se conserva como histórico de ideas descartadas.
 **App Android para escanear estancias, obtener un plano medido y planificar la reforma**
 Usuario principal: albañil autónomo, poca familiaridad con la tecnología. Requisito duro: **coste 0 €, para siempre**.
 

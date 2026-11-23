@@ -44,14 +44,6 @@ data class Cambio(
     val linea: String
         get() = if (detalle.isBlank()) tipo.nombre else "${tipo.nombre} — $detalle"
 
-    /** Lo que hay que pedirle al modelo o pintar en la foto. */
-    val instruccion: String
-        get() = buildList {
-            add(tipo.nombre)
-            if (acabado.isNotBlank()) add("en $acabado")
-            if (nota.isNotBlank()) add("($nota)")
-        }.joinToString(" ")
-
     /** Cantidad razonable al añadirlo a una estancia: 18 m² de suelo, 12 m de rodapié… */
     fun conCantidadSugerida(superficie: Double, altura: Double = 2.5): Cambio {
         if (!tipo.mide || cantidad > 0.0) return this
@@ -118,7 +110,7 @@ data class EstanciaProyecto(
     val terminada: Boolean get() = cambios.isNotEmpty() && propuestos.isEmpty()
     val vacia: Boolean get() = cambios.isEmpty()
 
-    /** Cuántos cambios se ven en la foto: son los que se pueden componer o pedir a la IA. */
+    /** Cambios aprobados que se ven en la foto: los que se pueden enseñar. */
     val visibles: List<Cambio> get() = aprobados.filter { it.tipo.seVe }
 
     val sePuedeEnsenar: Boolean get() = foto.isNotBlank() && visibles.isNotEmpty()
