@@ -135,7 +135,10 @@ class ClienteCloudflare(
          * acepta el modelo. Una foto vertical no se convierte en cuadrada.
          */
         /** Dirección exacta del servicio: la base puede venir con o sin barra final. */
-        internal fun punto(url: String): String = url.trim().trimEnd('/') + "/imagen"
+        internal fun punto(url: String): String {
+            val limpia = url.trim().trimEnd('/')
+            return if (limpia.endsWith("/imagen")) limpia else "$limpia/imagen"
+        }
 
         internal fun salida(ancho: Int, alto: Int): Pair<Int, Int> {
             if (ancho <= 0 || alto <= 0) return 1024 to 768

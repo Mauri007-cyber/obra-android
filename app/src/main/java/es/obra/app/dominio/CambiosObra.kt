@@ -93,6 +93,8 @@ data class EstanciaProyecto(
     val superficie: Double = 0.0,
     val altura: Double = 2.5,
     val foto: String = "",
+    /** Última imagen terminada guardada, para no perderla al salir de la pantalla. */
+    val fotoTerminada: String = "",
     val cambios: List<Cambio> = emptyList(),
     val grupo: String = "A"
 ) {

@@ -62,6 +62,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import es.obra.app.datos.Exportador
+import es.obra.app.datos.Galeria
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ProyectoRepositorio
 import es.obra.app.datos.rutaFoto
@@ -124,13 +125,21 @@ fun PantallaRetoque(
         val proyecto = obra?.let { withContext(Dispatchers.IO) { ProyectoRepositorio.cargar(dao, it) } }
         val cargada = proyecto?.estancia(estanciaId)
         estancia = cargada
-        resultado = null
-        foto = withContext(Dispatchers.IO) {
-            cargada?.foto
+        val (original, terminada) = withContext(Dispatchers.IO) {
+            val original = cargada?.foto
                 ?.takeIf { it.isNotBlank() }
                 ?.let { rutaFoto(contexto.filesDir, it) }
                 ?.let { cargarFoto(it) }
+            // La última imagen terminada se recupera de la estancia: no se pierde al salir.
+            val terminada = cargada?.fotoTerminada
+                ?.takeIf { it.isNotBlank() }
+                ?.let { File(contexto.filesDir, it) }
+                ?.takeIf { it.exists() }
+                ?.let { cargarFoto(it) }
+            original to terminada
         }
+        foto = original
+        resultado = terminada
     }
 
     val aprobados = estancia?.visibles ?: emptyList()
@@ -147,6 +156,24 @@ fun PantallaRetoque(
         frase = frase,
         estancia = estancia?.nombre.orEmpty()
     )
+
+    /** Deja la imagen a la vista y la guarda en la estancia para que no se pierda. */
+    fun fijarResultado(mapa: Bitmap) {
+        resultado = mapa
+        verAntes = false
+        alcance.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val carpeta = File(contexto.filesDir, "retoques").apply { mkdirs() }
+                    val archivo = File(carpeta, "terminada-$estanciaId.jpg")
+                    archivo.outputStream().use {
+                        mapa.compress(Bitmap.CompressFormat.JPEG, 92, it)
+                    }
+                    dao.fijarFotoTerminada(estanciaId, "retoques/${archivo.name}")
+                }
+            }
+        }
+    }
 
     fun generarConNube() {
         val original = foto
@@ -177,9 +204,17 @@ fun PantallaRetoque(
                     if (mapa == null) {
                         aviso = "La imagen llegó, pero no se pudo abrir."
                     } else {
-                        resultado = mapa
-                        verAntes = false
-                        aviso = "Imagen generada. Es una vista previa orientativa de la reforma."
+                        fijarResultado(mapa)
+                        val enGaleria = withContext(Dispatchers.IO) {
+                            Galeria.guardar(contexto, mapa, "obra-$estanciaId")
+                        }
+                        aviso = if (enGaleria) {
+                            "Imagen generada y guardada en la galería. Es una vista previa " +
+                                "orientativa de la reforma."
+                        } else {
+                            "Imagen generada y guardada en la estancia. No se pudo copiar a la " +
+                                "galería."
+                        }
                         CuotaImagen.fijar(contexto, salida.restantes ?: ((restantes ?: 1) - 1))
                         restantes = CuotaImagen.restantes(contexto)
                     }
@@ -223,9 +258,15 @@ fun PantallaRetoque(
             if (mapa == null) {
                 aviso = "No se pudo leer la imagen elegida."
             } else {
-                resultado = mapa
-                verAntes = false
-                aviso = "Imagen traída de Gemini. Compárala con la original antes de enseñarla."
+                fijarResultado(mapa)
+                val enGaleria = withContext(Dispatchers.IO) {
+                    Galeria.guardar(contexto, mapa, "obra-$estanciaId")
+                }
+                aviso = if (enGaleria) {
+                    "Imagen traída de Gemini y guardada en la galería. Compárala con la original."
+                } else {
+                    "Imagen traída de Gemini y guardada en la estancia. Compárala con la original."
+                }
             }
         }
     }
@@ -471,8 +512,7 @@ fun PantallaRetoque(
                             val retocada = withContext(Dispatchers.Default) {
                                 RetoqueFoto.aplicar(original, aplicables)
                             }
-                            resultado = retocada
-                            verAntes = false
+                            fijarResultado(retocada)
                             trabajando = false
                             aviso = "Listo. Es lo aprobado pintado sobre tu foto, no una imagen inventada."
                         }

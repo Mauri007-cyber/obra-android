@@ -24,7 +24,10 @@ export default {
     if (request.method === "GET" && url.pathname === "/salud") {
       return json({ ok: true, modelo: MODELO });
     }
-    if (url.pathname !== "/imagen") return json({ error: "Ruta no encontrada" }, 404);
+    // La raíz también genera: alguna versión de la app pedía la imagen a "/" y se comía un 404.
+    if (url.pathname !== "/imagen" && url.pathname !== "/") {
+      return json({ error: "Ruta no encontrada" }, 404);
+    }
     if (request.method !== "POST") return json({ error: "Método no permitido" }, 405);
 
     let datos;

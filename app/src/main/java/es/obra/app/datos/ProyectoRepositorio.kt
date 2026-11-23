@@ -35,6 +35,7 @@ object ProyectoRepositorio {
                     superficie = superficie,
                     altura = estancia.altura,
                     foto = estancia.foto,
+                    fotoTerminada = estancia.fotoTerminada,
                     cambios = porEstancia[estancia.id].orEmpty().mapNotNull { it.aDominio() }
                 )
             }

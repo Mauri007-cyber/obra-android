@@ -156,6 +156,19 @@ class PromptReformaTest {
     }
 
     @Test
+    fun `la colocacion de la frase llega al prompt`() {
+        val prompt = PromptReforma.paraLaPantalla(
+            aprobados = listOf(cambio(TipoCambio.ISLA_COCINA, "mármol")),
+            entendidos = emptyList(),
+            frase = "una isla a un metro de la pared",
+            estancia = "Cocina"
+        )
+
+        assertTrue(prompt.contains("Respect these positions:"))
+        assertTrue(prompt.contains("Place the kitchen island about 1 m from the wall."))
+    }
+
+    @Test
     fun `nombra la estancia cuando se sabe`() {
         val prompt = PromptReforma.para(
             cambios = listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")),

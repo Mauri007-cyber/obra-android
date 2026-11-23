@@ -69,7 +69,9 @@ data class EstanciaEntity(
     /** Superficie propia de esta habitación. 0 = usar la de la obra. */
     val superficie: Double = 0.0,
     /** Foto real de la estancia, para enseñar el antes y el después. */
-    val foto: String = ""
+    val foto: String = "",
+    /** Última imagen terminada guardada, relativa a filesDir. Vacía = todavía no hay. */
+    val fotoTerminada: String = ""
 )
 
 @Entity(
@@ -225,6 +227,9 @@ interface ObraDao {
     @Insert
     suspend fun insertarEstancia(estancia: EstanciaEntity): Long
 
+    @Query("UPDATE estancias SET fotoTerminada = :ruta WHERE id = :estanciaId")
+    suspend fun fijarFotoTerminada(estanciaId: Long, ruta: String)
+
     @Query("SELECT * FROM cambios WHERE estanciaId = :estanciaId ORDER BY creado ASC")
     fun observarCambiosDeEstancia(estanciaId: Long): Flow<List<CambioEntity>>
 
@@ -343,6 +348,15 @@ private val MIGRACION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/** La imagen terminada se guarda en la estancia para que no se pierda al salir de la pantalla. */
+private val MIGRACION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE estancias ADD COLUMN fotoTerminada TEXT NOT NULL DEFAULT ''"
+        )
+    }
+}
+
 @Database(
     entities = [
         ObraEntity::class,
@@ -351,7 +365,7 @@ private val MIGRACION_4_5 = object : Migration(4, 5) {
         HuecoEntity::class,
         CambioEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class ObraDb : RoomDatabase() {
@@ -372,6 +386,8 @@ abstract class ObraDb : RoomDatabase() {
             context.applicationContext,
             ObraDb::class.java,
             "obra.db"
-        ).addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5).build()
+        ).addMigrations(
+            MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6
+        ).build()
     }
 }

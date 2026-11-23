@@ -17,7 +17,12 @@ object PromptReforma {
      * Devuelve el prompt, o vacío si no hay nada visible que enseñar (solo albañilería, por
      * ejemplo). El llamante decide qué hacer entonces; aquí no se inventa una reforma.
      */
-    fun para(cambios: List<Cambio>, frase: String = "", estancia: String = ""): String {
+    fun para(
+        cambios: List<Cambio>,
+        frase: String = "",
+        estancia: String = "",
+        colocaciones: List<String> = emptyList()
+    ): String {
         val visibles = cambios.filter { it.tipo.seVe }
         if (visibles.isEmpty()) return ""
 
@@ -48,6 +53,9 @@ object PromptReforma {
             append("Keep the camera position, perspective, room geometry, ceiling height, ")
             append("windows, doors and all existing furniture exactly as they are. ")
             append("Change only the following: ${frases.joinToString(", ")}.")
+            if (colocaciones.isNotEmpty()) {
+                append(" Respect these positions: ${colocaciones.joinToString(" ")}")
+            }
             append(luz)
             append(nota)
             append("Interior photograph, natural daylight, realistic materials and shadows, ")
@@ -71,7 +79,8 @@ object PromptReforma {
         return para(
             cambios = aprobados + extra,
             frase = if (entendidos.isEmpty()) frase else "",
-            estancia = estancia
+            estancia = estancia,
+            colocaciones = Colocacion.enIngles(frase)
         )
     }
 

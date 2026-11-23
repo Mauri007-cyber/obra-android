@@ -106,6 +106,7 @@ class ClienteCloudflareTest {
         assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto("https://obra.workers.dev"))
         assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto("https://obra.workers.dev/"))
         assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto(" https://obra.workers.dev// "))
+        assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto("https://obra.workers.dev/imagen"))
     }
 
     @Test
