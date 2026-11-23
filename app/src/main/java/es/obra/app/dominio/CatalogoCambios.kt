@@ -5,7 +5,7 @@ package es.obra.app.dominio
  *
  * La idea es que nadie tenga que escribir «pon un suelo bonito»: se elige una partida del
  * catálogo, se le dice cuánto y cómo, y con eso ya se sabe qué enseñar, cuánto cuesta y qué
- * hay que pedirle al modelo si algún día se usa la IA.
+ * zona de la foto se tiñe con ese material.
  *
  * Los precios son orientativos y con la mano de obra incluida, como en [Tarifas]: se cambian
  * por obra, no aquí.
@@ -163,7 +163,7 @@ enum class TipoCambio(
             Ambito.DEMOLICION, Ambito.ALBANILERIA, Ambito.EXTERIOR -> Capa.NINGUNA
         }
 
-    /** Si el cambio se ve en la foto (y por tanto hay que componerlo o pedírselo al modelo). */
+    /** Si el cambio se ve en la foto (y por tanto hay que teñir su zona). */
     val seVe: Boolean get() = capa != Capa.NINGUNA
 
     companion object {
