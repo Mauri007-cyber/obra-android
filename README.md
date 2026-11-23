@@ -13,17 +13,22 @@ se llama a ningún servicio de pago.
   una lista de cambios elegidos de un catálogo de más de 45 partidas por oficio.
 - **Evaluación del cliente**: cada cambio se aprueba, se deja pendiente o se descarta. Lo
   aprobado es lo que cuenta para el dinero y para lo que se enseña.
-- **Retoque de la foto, gratis y en el móvil**: se tiñe el suelo, la pared y el techo de la
-  foto con el material aprobado, se encienden las luces nuevas y se compara el antes y el
-  después. No se sube la foto a ningún sitio y no hay nada que pagar.
+- **Imagen fotorrealista, gratis**: lo aprobado se convierte en un prompt y se pide la imagen
+  a un Worker propio sobre el plan gratuito de Cloudflare Workers AI (sin ninguna clave en el
+  APK), o se abre la foto en Gemini para la máxima calidad. Si no hay red, no hay servicio o se
+  agota la cuota del día, se sigue con el retoque local.
+- **Retoque de la foto, sin conexión**: se tiñe el suelo, la pared y el techo de la foto con el
+  material aprobado, se encienden las luces nuevas y se compara el antes y el después. No sale
+  del móvil y no tiene cuota.
 - **Lenguaje natural sin conexión**: «suelo de tarima clara y paredes blancas, tres enchufes»
   se convierte en cambios del catálogo con sus acabados y cantidades. Son reglas sobre el
   propio catálogo, no un servicio externo: entiende lo que conoce y no inventa partidas.
 - **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia.
-- **Sin servicios de pago.** La app no envía fotos ni llama a ningún modelo: medir, dibujar el
-  plano, presupuestar, el PDF, las copias, el resumen y el retoque se calculan en el móvil.
-  Todo funciona sin conexión y sin coste.
-- La única conexión de red es la comprobación opcional de actualizaciones en GitHub.
+- **Sin servicios de pago.** Medir, dibujar el plano, presupuestar, el PDF, las copias, el
+  resumen y el retoque se calculan en el móvil, sin conexión. Las dos vías de imagen son
+  opcionales, gratuitas y nunca están en el camino crítico.
+- Las conexiones de red son la comprobación opcional de actualizaciones en GitHub y, solo si se
+  pulsa generar, el envío de la foto al servicio de imagen que se elija.
 
 ## Distribución y actualizaciones
 
@@ -48,24 +53,61 @@ Todas las versiones deben ir firmadas con la misma clave. La del proyecto está 
   (`$HOME/obra-keys/obra-release.jks` y `keystore.properties`). **Si se pierde, no se puede
 actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copia segura de la clave y de los datos.
 
-## Sin servicios de pago
+## Imagen fotorrealista gratis
 
-La app no incluye ningún cliente de IA generativa, ni claves, ni direcciones de servicios
-externos. La generación de imágenes y el recorte de fondo que había se retiraron porque
-dependían de servicios que pueden facturar, y el requisito es que la app sea gratuita para
-siempre.
+Hay dos formas de enseñar la obra terminada, las dos sin pagar nada y sin cuentas para el
+usuario, más el retoque local que ya existía.
 
-Lo que sí se conserva es la funcionalidad útil, hecha en el propio móvil:
+### 1. En la app, con un Worker propio (cuota diaria gratuita)
+
+La app convierte los cambios aprobados en un prompt (`dominio/PromptReforma.kt`) y pide la
+imagen a un Worker propio sobre el **plan gratuito de Cloudflare Workers AI**
+(FLUX.2 klein 4B). La cuenta vive en el Worker: **en el APK no hay ninguna clave**. Son 10.000
+neuronas al día, unas 90 imágenes de 1024×1024; el Worker limita además a 20 imágenes por móvil
+para que un teléfono no se coma la cuota de los demás. Al agotarse, responde `429` y la app
+sigue con el retoque local. Nunca se cobra, porque el plan gratuito no tiene método de pago.
+
+Para conectarlo hace falta una cuenta gratuita de Cloudflare, sin tarjeta:
+
+```bash
+export CLOUDFLARE_API_TOKEN=...      # Workers Scripts, Workers KV Storage y Workers AI (Edit)
+export CLOUDFLARE_ACCOUNT_ID=...
+scripts/desplegar-worker.sh          # crea el contador y publica el Worker
+scripts/build.sh :app:assembleDebug -PimagenUrl=https://obra-imagen.<cuenta>.workers.dev
+```
+
+Sin `-PimagenUrl` la app funciona igual: el botón de generar avisa de que falta conectar el
+servicio, y Gemini y el retoque local siguen disponibles.
+
+### 2. Abriendo la foto en Gemini (máxima calidad, dos toques)
+
+La app prepara la foto y el prompt y abre el menú de compartir; se elige Gemini, se envía y se
+guarda la imagen. Después, «Ya la tengo: traer la imagen» la mete en la estancia. Es el modelo
+Nano Banana de la cuenta gratuita de Google: la mejor calidad sin coste, con sus límites (se
+refresca cada 5 horas, descarga a 1K y lleva marca de agua).
+
+### 3. Retoque local (sin conexión)
+
+Todo lo que hace falta para trabajar sin red:
 
 - **Retoque local**: pinta el material aprobado sobre la zona de la foto que le corresponde
   (suelo, pared, techo), conserva la textura y las sombras, y enciende las luces añadidas. Es
-  pintura sobre lo que ya hay: no se inventan muebles nuevos, porque eso exige un modelo de
-  generación que, gratis y sin subir la foto, hoy no existe.
+  pintura sobre lo que ya hay: no se inventan muebles nuevos. Para eso están las otras dos
+  vías, que sí generan la imagen entera.
 - **Entender la frase**: convierte lo escrito en lenguaje normal en partidas del catálogo, sin
   red. Si la frase pide algo que no está en el catálogo, no se propone nada y se dice.
 
 Cualquier cosa que se añada en el futuro tendrá que ser gratuita, funcionar sin cuenta y no
 estar nunca en el camino crítico.
+
+### La foto sale del móvil solo si se pide
+
+Generar en la app envía la foto al Worker (Cloudflare declara retención cero en FLUX.2). Abrir
+Gemini envía la foto y el texto a Google, y en cuenta gratuita Google puede usarlos para mejorar
+sus productos. La app lo avisa y pide permiso la primera vez. El retoque local no envía nada.
+
+La imagen generada es una **vista previa orientativa**: no sustituye al presupuesto, ni a las
+medidas, ni a una visita a la obra.
 
 ## Limitaciones importantes
 
@@ -88,4 +130,12 @@ pantallas de copia y el retoque (frase entendida y foto retocada sin conexión).
 el emulador de GitHub Actions en cada subida a `main`.
 
 Las pruebas unitarias cubren, entre otras cosas, la interpretación de frases: acentos, acabados,
-cantidades escritas con número o con palabra y partidas que no se deben inventar.
+cantidades escritas con número o con palabra y partidas que no se deben inventar. También el
+prompt de imagen (materiales en inglés, encuadre que se conserva, nada que inventar) y la
+lectura de las respuestas del servicio (cuota agotada, error, imagen válida).
+
+El Worker tiene su propia prueba, sin cuenta ni red:
+
+```bash
+node worker-obra/prueba.mjs
+```

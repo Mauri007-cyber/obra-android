@@ -453,7 +453,7 @@ private fun TarjetaEstancia(
                 OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Retocar la foto · gratis")
+                    Text("Enseñar la obra terminada · gratis")
                 }
             }
 

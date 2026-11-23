@@ -11,6 +11,11 @@ plugins {
 
 val keystorePropsFile = rootProject.file("keystore.properties")
 
+// Dirección del Worker propio que genera la imagen (plan gratuito de Cloudflare).
+// Vacío = sin conectar: la app avisa y deja Gemini y el retoque local.
+//   scripts/build.sh :app:assembleDebug -PimagenUrl=https://obra-imagen.<cuenta>.workers.dev
+val urlImagen = providers.gradleProperty("imagenUrl").orNull.orEmpty()
+
 android {
     namespace = "es.obra.app"
     compileSdk = 36
@@ -37,6 +42,8 @@ android {
             "UPDATE_URL",
             "\"https://raw.githubusercontent.com/Mauri007-cyber/obra-android/main/update.json\""
         )
+
+        buildConfigField("String", "IMAGEN_URL", "\"$urlImagen\"")
     }
 
     signingConfigs {

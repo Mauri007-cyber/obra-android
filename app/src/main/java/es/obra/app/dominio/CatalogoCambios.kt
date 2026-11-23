@@ -153,14 +153,18 @@ enum class TipoCambio(
     MUEBLE_TV("Mueble de salón a medida", Ambito.MOBILIARIO, Unidad.ML, 240.0);
 
     val capa: Capa
-        get() = when (ambito) {
-            Ambito.SUELO -> Capa.SUELO
-            Ambito.PARED, Ambito.PINTURA -> Capa.PARED
-            Ambito.TECHO -> Capa.TECHO
-            Ambito.CARPINTERIA -> Capa.HUECO
-            Ambito.BANO, Ambito.COCINA, Ambito.MOBILIARIO,
-            Ambito.ELECTRICIDAD, Ambito.FONTANERIA, Ambito.CLIMATIZACION -> Capa.OBJETO
-            Ambito.DEMOLICION, Ambito.ALBANILERIA, Ambito.EXTERIOR -> Capa.NINGUNA
+        get() = when (this) {
+            // Pintar el techo es techo, aunque el oficio sea pintura: si no, se tiñen las paredes.
+            PINTURA_TECHO -> Capa.TECHO
+            else -> when (ambito) {
+                Ambito.SUELO -> Capa.SUELO
+                Ambito.PARED, Ambito.PINTURA -> Capa.PARED
+                Ambito.TECHO -> Capa.TECHO
+                Ambito.CARPINTERIA -> Capa.HUECO
+                Ambito.BANO, Ambito.COCINA, Ambito.MOBILIARIO,
+                Ambito.ELECTRICIDAD, Ambito.FONTANERIA, Ambito.CLIMATIZACION -> Capa.OBJETO
+                Ambito.DEMOLICION, Ambito.ALBANILERIA, Ambito.EXTERIOR -> Capa.NINGUNA
+            }
         }
 
     /** Si el cambio se ve en la foto (y por tanto hay que teñir su zona). */

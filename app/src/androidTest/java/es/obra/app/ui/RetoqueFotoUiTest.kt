@@ -70,14 +70,14 @@ class RetoqueFotoUiTest {
             }
 
             esperarTexto("Dilo con tus palabras")
-            regla.onNodeWithText("Aplicar en la foto").assertIsNotEnabled()
+            regla.onNodeWithText("Retoque local").assertIsNotEnabled()
 
             regla.onNode(hasSetTextAction())
                 .performTextInput("suelo de tarima clara y paredes blancas")
             regla.onNodeWithText("Entender").performClick()
 
             esperarTexto("He entendido 2 trabajo(s)")
-            regla.onNodeWithText("Aplicar en la foto").performClick()
+            regla.onNodeWithText("Retoque local").performClick()
 
             esperarTexto("Compartir la foto")
             regla.onNodeWithText("Compartir la foto").assertExists()
