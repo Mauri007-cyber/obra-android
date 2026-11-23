@@ -16,7 +16,7 @@ obra terminada** al cliente. Sin cuenta ni nube obligatoria para las funciones l
 - **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia; todavía no genera una imagen de la obra terminada.
 - **IA opcional**: se puede preparar un retoque desde una estancia con su foto, medidas y cambios visibles aprobados, además de instrucciones editables. La integración real del modelo no está habilitada ni validada; las imágenes generadas no garantizan respetar medidas o geometría.
 - La IA **nunca** está en el camino crítico: apagada por defecto y sin claves en el APK.
-- **IA y recorte remotos bloqueados:** la versión actual del Worker no llama a proveedores de pago hasta incorporar controles fiables de acceso y gasto. La simulación devuelve la foto original.
+- **IA y recorte remotos bloqueados por defecto:** el Worker ya tiene la integración completa de identidad ES256 y cuota global en un único Durable Object, probada en workerd, pero `PROTECCION_ACTIVA=0` la mantiene cerrada hasta configurar un proveedor de identidad real y comprobar el gasto. La simulación devuelve la foto original.
 
 ## Distribución y actualizaciones
 
@@ -47,17 +47,18 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 - Cada estancia permite editar su superficie, altura y plano. El presupuesto incluye únicamente cambios aprobados por estancia y exige cantidades y precios válidos; sin aprobaciones no genera partidas. Hay que comprobar las medidas y los precios en obra.
 - La APK de depuración usa el identificador `es.obra.app.prueba`: se instala como una app distinta, sin acceso a los datos ni a las actualizaciones de la versión normal.
 - Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. La lectura comprueba la integridad del ZIP y que las fotos puedan decodificarse. Una prueba instrumentada ha pasado en emulador Android con datos de prueba; no se ha probado la restauración entre dispositivos con datos reales. No borres los originales basándote en esta copia. La exportación antigua `.obra` sigue sin fotos y no es restaurable.
-- Las llamadas de pago del Worker están bloqueadas en el código local. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla; aún faltan autenticación y límites fiables.
+- Las llamadas de pago del Worker están bloqueadas por defecto. Una versión anterior ya desplegada sigue siendo insegura hasta desactivarla o actualizarla. La verificación de identidad y la cuota global están implementadas y probadas en workerd, pero falta el proveedor de identidad real y comprobar el coste facturado antes de abrirlas; ver `worker/DESPLEGAR.md`.
 - El manifiesto de GitHub puede apuntar a una versión anterior; publicar una actualización requiere verificar el APK firmado, su release y el manifiesto.
 
 ## Intermediario de IA
 
-Las llamadas de pago están desactivadas; consulta [worker/DESPLEGAR.md](worker/DESPLEGAR.md) antes de desplegar. El script de Windows aún no está probado en un equipo real.
+Las llamadas de pago están desactivadas por defecto; consulta [worker/DESPLEGAR.md](worker/DESPLEGAR.md) antes de desplegar. La protección (token ES256 + cuota global atómica) está integrada y cubierta por pruebas reales en workerd, pero sin proveedor de identidad ni límite de dinero comprobado no se debe abrir. El script de Windows aún no está probado en un equipo real.
 
 ## Pruebas
 
 ```bash
-npm --prefix worker test
+npm --prefix worker test              # lógica, handler, configuración y pipeline de la IA
+npm --prefix worker run test:workerd  # Durable Object, cuota global y concurrencia en workerd
 scripts/build.sh :app:testDebugUnitTest
 scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositivo conectado
 ```
