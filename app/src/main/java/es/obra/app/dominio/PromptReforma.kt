@@ -27,13 +27,7 @@ object PromptReforma {
         val visibles = cambios.filter { it.tipo.seVe }
         if (visibles.isEmpty()) return ""
 
-        val frases = buildList {
-            visibles.filter { it.tipo.capa == Capa.SUELO }.forEach { add(fraseSuelo(it)) }
-            visibles.filter { it.tipo.capa == Capa.PARED }.forEach { add(frasePared(it)) }
-            visibles.filter { it.tipo.capa == Capa.TECHO }.forEach { add(fraseTecho(it)) }
-            visibles.filter { it.tipo.capa == Capa.HUECO }.forEach { add(fraseHueco(it)) }
-            visibles.filter { it.tipo.capa == Capa.OBJETO }.forEach { add(fraseObjeto(it)) }
-        }.distinct()
+        val frases = visibles.map { fraseDe(it) }.distinct()
 
         if (frases.isEmpty()) return ""
 
@@ -97,6 +91,49 @@ object PromptReforma {
         return limitar(listOf(cuerpo, intocable, posiciones, vaciado, anadidos, luz, nota, cola))
             .replace(Regex("\\s+"), " ")
             .trim()
+    }
+
+    /** La frase inglesa de una sola partida, para reutilizarla en correcciones. */
+    private fun fraseDe(cambio: Cambio): String = when (cambio.tipo.capa) {
+        Capa.SUELO -> fraseSuelo(cambio)
+        Capa.PARED -> frasePared(cambio)
+        Capa.TECHO -> fraseTecho(cambio)
+        Capa.HUECO -> fraseHueco(cambio)
+        else -> fraseObjeto(cambio)
+    }
+
+    /**
+     * Corregir la imagen ya generada: mover una puerta, cambiar el color de un suelo, quitar algo
+     * que no debería estar. Se parte de la imagen editada y se pide cambiar SOLO eso: el análisis
+     * del Worker vuelve a describir la foto que recibe y protege el resto.
+     */
+    fun paraCorreccion(frase: String, estancia: String = ""): String {
+        val limpia = frase.trim().replace(Regex("\\s+"), " ")
+        if (limpia.isBlank()) return ""
+
+        val visibles = FraseACambios.analizar(limpia).cambios.filter { it.tipo.seVe }
+        val sitio = if (estancia.isBlank()) "room" else estancia.trim().lowercase()
+        val pedido = if (visibles.isEmpty()) {
+            "The client asks, in Spanish: $limpia."
+        } else {
+            "Change only: ${visibles.map { fraseDe(it) }.distinct().joinToString(", ")}."
+        }
+        // Lo que se corrige no puede aparecer en la lista de «esto se queda igual».
+        val conservar = buildList {
+            if (visibles.none { it.tipo.capa == Capa.SUELO }) add("the floor")
+            if (visibles.none { it.tipo.capa == Capa.PARED }) add("the walls")
+            if (visibles.none { it.tipo.capa == Capa.TECHO }) add("the ceiling")
+            if (visibles.none { it.tipo in PUERTAS }) add("the doors")
+            if (visibles.none { it.tipo in VENTANAS }) add("the windows")
+            if (visibles.none { it.tipo.capa == Capa.OBJETO }) add("the furniture")
+        }.ifEmpty { listOf("everything else") }
+
+        val cuerpo = "Edit this exact photograph of the $sitio. Keep the same photograph, camera " +
+            "and perspective: correct only what is asked. " +
+            "$pedido Keep the exact position, size and material of " +
+            "${conservar.joinToString(", ")}, with the same colours. Do not add or remove " +
+            "anything else. Photorealistic, natural daylight, no text, no people."
+        return limitar(listOf(cuerpo)).replace(Regex("\\s+"), " ").trim()
     }
 
     /** El Worker rechaza prompts largos: aquí se recorta sin cortar palabras ni frases a medias. */

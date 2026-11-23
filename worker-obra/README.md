@@ -39,14 +39,23 @@ POST /imagen     → { imagen, descripcion, restantes }
                    429 { error: "sin_cuota" }
 POST /propuestas → { propuestas: [ { titulo, resumen, actuaciones } ], restantes }
                    429 { error: "sin_cuota" }
-POST /vision     → { descripcion }      (solo pruebas; la app no lo usa)
 ```
 
 **Imagen.** Cuerpo: `{ prompt, foto (base64), dispositivo, ancho, alto }`. La app reduce la foto a
-menos de 512 px de lado, que es lo que acepta el modelo como referencia. Antes de generar, el
-Worker pide a **llama-3.2-11b-vision** una frase de lo que ya hay en la foto y la añade al prompt
-como «keep these real features». Así no se inventa el suelo, el techo ni la isla. Si la visión
-falla, se genera igual y el campo `descripcion` viene vacío.
+menos de 512 px de lado, que es lo que acepta el modelo como referencia.
+
+Antes de generar, el Worker **analiza la foto** con **llama-3.2-11b-vision** en dos pasadas:
+una estructurada (`FLOOR`, `WALLS`, `CEILING`, `OPENINGS`, `FIXED`, `VIEWPOINT`) y otra centrada
+en paredes (`LAYOUT`: qué hay en la izquierda, la derecha y el fondo). El resultado se coloca
+**delante** del prompt como «Existing room, keep every item in the same place», y su sitio está
+reservado: si el prompt del cliente es muy largo se recorta **la petición**, nunca la lista de lo
+que no se debe tocar. Tope final: 2000 caracteres.
+
+Corregir una imagen generada usa la misma ruta: la app manda esa imagen y un prompt de «cambia
+solo esto». El análisis de la nueva foto protege posiciones, colores y materiales del resto.
+
+Si la visión falla, se genera igual y `descripcion` viene vacío. `?depurar=1` añade el
+`promptFinal` para comprobar qué se envió de verdad.
 
 **Propuestas.** Cuerpo: `{ dispositivo, tipo, superficie, altura, presupuesto, estancias[],
 permite[], deseo, catalogo[] }`. El catálogo lo manda la app (`clave`, `nombre`, `unidad`) y el

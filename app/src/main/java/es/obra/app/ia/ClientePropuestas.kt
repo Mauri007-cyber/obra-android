@@ -4,6 +4,7 @@ import android.os.Build
 import es.obra.app.BuildConfig
 import es.obra.app.dominio.Escenario
 import es.obra.app.dominio.Propuestas
+import es.obra.app.dominio.RespuestaPropuestasDto
 import es.obra.app.dominio.TipoCambio
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -114,7 +115,7 @@ class ClientePropuestas(
     private fun interpretar(respuesta: Pair<Int, String>): ResultadoPropuestas {
         val (codigo, cuerpo) = respuesta
         val sobre = runCatching {
-            jsonPropuestas.decodeFromString<PropsRespuesta>(cuerpo)
+            jsonPropuestas.decodeFromString<RespuestaPropuestasDto>(cuerpo)
         }.getOrNull()
 
         if (codigo == 429) {
@@ -136,12 +137,6 @@ class ClientePropuestas(
             )
         return ResultadoPropuestas.Ok(escenarios, sobre?.restantes)
     }
-
-    @Serializable
-    internal data class PropsRespuesta(
-        val restantes: Int? = null,
-        val error: String = ""
-    )
 
     companion object {
 

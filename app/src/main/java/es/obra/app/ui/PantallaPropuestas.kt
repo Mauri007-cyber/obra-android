@@ -8,6 +8,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
@@ -80,8 +81,7 @@ private val PERMISOS = listOf(
 fun PantallaPropuestas(
     obraId: Long,
     dao: ObraDao,
-    alVolver: () -> Unit,
-    alTerminar: () -> Unit
+    alVolver: () -> Unit
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
@@ -112,7 +112,6 @@ fun PantallaPropuestas(
         alcance.launch {
             val peticion = PeticionPropuestas(
                 dispositivo = CuotaImagen.dispositivo(contexto),
-                tipo = "piso",
                 superficie = actual.superficieEfectiva,
                 altura = actual.altura,
                 presupuesto = presupuesto.replace(",", ".").toDoubleOrNull() ?: 0.0,
@@ -166,7 +165,7 @@ fun PantallaPropuestas(
                     )
                 )
             }
-            alTerminar()
+            alVolver()
         }
     }
 
@@ -275,9 +274,9 @@ fun PantallaPropuestas(
                     horizontalArrangement = Arrangement.Center
                 ) {
                     CircularProgressIndicator()
-                    Spacer(Modifier.height(0.dp))
+                    Spacer(Modifier.width(12.dp))
                     Text(
-                        "  Pensando tres escenarios…",
+                        "Pensando tres escenarios…",
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }

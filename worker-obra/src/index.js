@@ -19,11 +19,10 @@ const MODELO_TEXTO = "@cf/meta/llama-3.3-70b-instruct-fp8-fast";
 const MODELO_TEXTO_RESPALDO = "@cf/meta/llama-3.1-8b-instruct";
 
 const MAX_FOTO = 2_000_000; // caracteres base64, ~1,4 MB de imagen
-const MAX_PROMPT = 1500;
-const MAX_DESCRIPCION = 420;
+const MAX_PROMPT = 2000;
+const MAX_DESCRIPCION = 460;
 const LIMITE_DIA = 20;
 const LIMITE_PROPUESTAS = 10;
-const LIMITE_VISION = 30;
 
 export default {
   async fetch(request, env) {
@@ -36,28 +35,6 @@ export default {
         vision: MODELO_VISION,
         texto: MODELO_TEXTO
       });
-    }
-
-    // Solo para comprobar la visión desde el navegador: no la usa la app.
-    if (url.pathname === "/vision") {
-      if (request.method !== "POST") return json({ error: "Método no permitido" }, 405);
-      let cuerpo;
-      try {
-        cuerpo = await request.json();
-      } catch {
-        return json({ error: "El cuerpo no es JSON válido" }, 400);
-      }
-      const foto = String(cuerpo?.foto ?? "").replace(/^data:image\/\w+;base64,/, "");
-      const dispositivo = String(cuerpo?.dispositivo ?? "").slice(0, 120);
-      if (!foto) return json({ error: "Falta la foto" }, 400);
-      if (foto.length > MAX_FOTO) return json({ error: "La foto es demasiado grande" }, 413);
-      if (dispositivo.length < 8) return json({ error: "Falta el identificador del móvil" }, 400);
-      if (env.CONTADORES) {
-        const cupo = await gastar(env, dispositivo, "v", LIMITE_VISION);
-        if (cupo.agotado) return json({ error: "sin_cuota" }, 429);
-      }
-      const vista = await describir(env, deBase64(foto));
-      return json({ descripcion: vista.texto, error: vista.error });
     }
 
     if (url.pathname === "/propuestas") {
@@ -105,22 +82,23 @@ async function imagen(request, env) {
     restantes = cupo.restantes;
   }
 
-  // Ver la habitación antes de tocarla: así el modelo respeta suelo, techo y paredes que no se
-  // han pedido cambiar, en vez de inventarse un baño nuevo. Si la visión falla, se sigue sin ella.
+  // Analizar la habitación ANTES de tocarla: así el modelo respeta la posición de puertas y
+  // ventanas, el suelo, el techo y lo que no se ha pedido cambiar. Si la visión falla, se sigue
+  // sin análisis: la imagen no puede depender de ella.
   const vista = await describir(env, bytes);
   const descripcion = vista.texto;
-  const promptFinal = limitar(
-    descripcion
-      ? `${prompt} Keep these real features of the room exactly as they are unless the request ` +
-          `changes them: ${descripcion}`
-      : prompt,
-    MAX_PROMPT
-  );
+  const promptFinal = armarPrompt(prompt, descripcion);
+  const depurar = new URL(request.url).searchParams.get("depurar") === "1";
 
   try {
     const imagen = await generar(env, promptFinal, bytes, datos?.ancho, datos?.alto);
     if (!imagen) return json({ error: "El modelo no devolvió imagen" }, 502);
-    return json({ imagen, descripcion, restantes });
+    return json({
+      imagen,
+      descripcion,
+      restantes,
+      ...(depurar ? { promptFinal, visionError: vista.error } : {})
+    });
   } catch (error) {
     const texto = String(error?.message ?? error);
     if (/neuron|quota|capacity|429|rate.?limit/i.test(texto)) {
@@ -130,27 +108,112 @@ async function imagen(request, env) {
   }
 }
 
-/** Una frase corta y literal de lo que ya hay: materiales, colores y huecos. */
+const ETIQUETAS = ["FLOOR", "WALLS", "CEILING", "OPENINGS", "FIXED", "VIEWPOINT"];
+
+/**
+ * Análisis estructurado de la foto: qué hay y DÓNDE está. Las posiciones son lo que evita que el
+ * modelo mueva una puerta o ponga la ventana en otra pared al generar.
+ */
 async function describir(env, bytes) {
+  let error = "";
+  const general = await correrVision(
+    env,
+    bytes,
+    "Analyse this room photograph so an image editor does not move anything. " +
+      "Answer in English with exactly these lines and nothing else, at most 14 words each:\n" +
+      "FLOOR: material and colour\n" +
+      "WALLS: colour and finish\n" +
+      "CEILING: material and colour\n" +
+      "OPENINGS: every door and window, on which wall (left, right, front, behind the camera), " +
+      "with frame material and colour\n" +
+      "FIXED: fixed elements (radiators, island, fitted furniture, sockets) and which wall\n" +
+      "VIEWPOINT: camera height and angle\n" +
+      "Write unknown when something is not visible. No advice, no people, no extra text.",
+    220,
+    (mensaje) => { error = mensaje; }
+  );
+
+  let analisis = ordenarAnalisis(general);
+
+  // La primera pasada a veces deja puertas y ventanas fuera, que es justo lo que hay que clavar.
+  // Se pregunta por paredes (izquierda, derecha, fondo): así el modelo tiene que colocarlas.
+  if (!/OPENINGS:/.test(analisis)) {
+    const layout = await correrVision(
+      env,
+      bytes,
+      "Look at this room photograph. In one sentence of at most 35 words, say what is on the " +
+        "left wall, on the right wall and on the back wall: doors, windows, radiators, fixed " +
+        "furniture, each with its colour and material. Start with the word LAYOUT. " +
+        "Do not describe the floor, the walls or the ceiling in general. No advice, no people.",
+      130,
+      (mensaje) => { error = error || mensaje; }
+    );
+    const limpio = layout.replace(/\s+/g, " ").replace(/^\W*LAYOUT\W*/i, "").trim();
+    if (limpio.length > 8) {
+      analisis = analisis
+        ? `${analisis}; LAYOUT: ${limpio.slice(0, 220)}`
+        : `LAYOUT: ${limpio.slice(0, 220)}`;
+      analisis = analisis.slice(0, MAX_DESCRIPCION);
+    }
+  }
+
+  return { texto: analisis, error: analisis ? "" : error };
+}
+
+/** Una llamada al modelo de visión; devuelve el texto o "" sin lanzar. */
+async function correrVision(env, bytes, prompt, maxTokens, alFallar) {
   try {
     const salida = await env.AI.run(MODELO_VISION, {
       image: Array.from(bytes),
-      prompt:
-        "Describe this room in one sentence of at most 45 English words. Only what is visible: " +
-        "floor material and colour, walls, ceiling, window and door frames, fixed furniture. " +
-        "Do not invent, do not mention people, no lists, no advice.",
-      max_tokens: 140,
+      prompt,
+      max_tokens: maxTokens,
       temperature: 0.2
     });
-    const texto = String(
-      salida?.response ?? salida?.description ?? salida?.result?.response ?? ""
-    )
-      .replace(/\s+/g, " ")
-      .trim();
-    return { texto: texto.length > 8 ? texto.slice(0, MAX_DESCRIPCION) : "", error: "" };
+    return String(salida?.response ?? salida?.description ?? salida?.result?.response ?? "");
   } catch (error) {
-    return { texto: "", error: String(error?.message ?? error).slice(0, 300) };
+    alFallar?.(String(error?.message ?? error).slice(0, 300));
+    return "";
   }
+}
+
+/**
+ * Deja solo las líneas que se entienden, en orden fijo y sin repetir. Así el análisis no se corta
+ * por el medio ni pierde las posiciones si el modelo añade adornos.
+ */
+function ordenarAnalisis(bruto) {
+  const lineas = String(bruto ?? "").split(/\n|(?=\b(?:FLOOR|WALLS|CEILING|OPENINGS|FIXED|VIEWPOINT):)/i);
+  const encontradas = new Map();
+  lineas.forEach((linea) => {
+    const limpia = linea.replace(/^[-*•\s]+/, "").trim();
+    const partes = limpia.match(/^(FLOOR|WALLS|CEILING|OPENINGS|FIXED|VIEWPOINT)\s*:\s*(.+)$/i);
+    if (!partes) return;
+    const etiqueta = partes[1].toUpperCase();
+    const valor = partes[2].replace(/\s+/g, " ").replace(/[.;]+$/, "").trim();
+    if (!valor || /^unknown\b/i.test(valor)) return;
+    if (!encontradas.has(etiqueta)) encontradas.set(etiqueta, valor.slice(0, 130));
+  });
+  const ordenado = ETIQUETAS
+    .filter((etiqueta) => encontradas.has(etiqueta))
+    .map((etiqueta) => `${etiqueta}: ${encontradas.get(etiqueta)}`)
+    .join("; ");
+
+  if (ordenado.length > 8) return ordenado.slice(0, MAX_DESCRIPCION);
+
+  // Si el modelo no respetó el formato, se usa su frase tal cual: mejor algo que nada.
+  const suelto = String(bruto ?? "").replace(/\s+/g, " ").trim();
+  return suelto.length > 8 ? suelto.slice(0, MAX_DESCRIPCION) : "";
+}
+
+/**
+ * El análisis va delante y se reserva su sitio: si el prompt del cliente es muy largo se recorta
+ * la petición, nunca la lista de lo que no se debe tocar.
+ */
+function armarPrompt(prompt, analisis) {
+  if (!analisis) return limitar(prompt, MAX_PROMPT);
+  const cabecera = "Existing room, keep every item in the same place unless the request changes it: ";
+  const sitio = MAX_PROMPT - cabecera.length - analisis.length - 2;
+  const peticion = limitar(prompt, Math.max(400, sitio));
+  return limitar(`${cabecera}${analisis} || ${peticion}`, MAX_PROMPT);
 }
 
 async function generar(env, prompt, bytes, ancho, alto) {
@@ -365,7 +428,10 @@ function limitar(texto, maximo) {
   if (texto.length <= maximo) return texto;
   const corte = texto.slice(0, maximo);
   const frase = corte.lastIndexOf(".");
-  return (frase > maximo / 2 ? corte.slice(0, frase + 1) : corte).trim();
+  if (frase > maximo / 2) return corte.slice(0, frase + 1).trim();
+  // Sin frase completa, se corta por palabra: nunca «metre fro».
+  const espacio = corte.lastIndexOf(" ");
+  return (espacio > maximo / 2 ? corte.slice(0, espacio) : corte).trim();
 }
 
 /** Contador por móvil, día UTC y tipo. Se guarda una huella, no el identificador completo. */

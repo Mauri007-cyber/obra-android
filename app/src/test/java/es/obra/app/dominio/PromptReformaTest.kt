@@ -7,6 +7,44 @@ import org.junit.Test
 
 class PromptReformaTest {
 
+    @Test
+    fun `una correccion parte de la foto editada y solo cambia lo pedido`() {
+        val prompt = PromptReforma.paraCorreccion(
+            "la puerta está a la derecha, muévela a la izquierda",
+            "Salón"
+        )
+
+        assertTrue(prompt, prompt.startsWith("Edit this exact photograph"))
+        assertTrue(prompt, prompt.contains("correct only what is asked"))
+        // Se mueve una puerta: no se pide conservarla, pero sí las ventanas.
+        assertTrue(prompt, !prompt.contains("the doors"))
+        assertTrue(prompt, prompt.contains("the windows"))
+        assertTrue(prompt, !prompt.contains("renovation preview"))
+    }
+
+    @Test
+    fun `si se corrige el suelo no se pide conservarlo`() {
+        val prompt = PromptReforma.paraCorreccion("cambia el suelo a porcelánico gris cemento")
+
+        val conservar = prompt.substringAfter("Keep the exact position, size and material of")
+        assertTrue(prompt, prompt.contains("porcelain floor tiles"))
+        assertTrue(conservar, !conservar.contains("the floor"))
+        assertTrue(conservar, conservar.contains("the walls"))
+    }
+
+    @Test
+    fun `la correccion reutiliza las partidas entendidas`() {
+        val prompt = PromptReforma.paraCorreccion("pinta las paredes de blanco")
+
+        assertTrue(prompt, prompt.contains("paint the walls"))
+        assertTrue(prompt, prompt.contains("Change only"))
+    }
+
+    @Test
+    fun `una correccion vacia no manda nada`() {
+        assertEquals("", PromptReforma.paraCorreccion("   "))
+    }
+
     private fun cambio(tipo: TipoCambio, acabado: String = ""): Cambio =
         Cambio(tipo = tipo, cantidad = 10.0, acabado = acabado, estado = EstadoCambio.APROBADO)
 

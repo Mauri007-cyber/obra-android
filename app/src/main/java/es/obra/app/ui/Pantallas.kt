@@ -203,8 +203,7 @@ fun AppObra() {
         is Pantalla.Propuestas -> PantallaPropuestas(
             obraId = actual.id,
             dao = dao,
-            alVolver = { pantalla = Pantalla.ObraFinal(actual.id) },
-            alTerminar = { pantalla = Pantalla.ObraFinal(actual.id) }
+            alVolver = { pantalla = Pantalla.ObraFinal(actual.id) }
         )
 
         is Pantalla.Retoque -> PantallaRetoque(

@@ -34,6 +34,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -119,6 +120,10 @@ fun PantallaRetoque(
     var restantes by remember { mutableStateOf(CuotaImagen.restantes(contexto)) }
     var refresco by remember { mutableIntStateOf(0) }
     var verPrompt by remember { mutableStateOf(false) }
+    var corrigiendo by remember { mutableStateOf(false) }
+    var correccion by remember { mutableStateOf("") }
+    // Las imágenes anteriores, para poder deshacer una corrección que empeora la foto.
+    var historial by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
 
     val generador = remember { ClienteCloudflare() }
 
@@ -260,6 +265,63 @@ fun PantallaRetoque(
         }
     }
 
+    /**
+     * Corregir la imagen ya generada: se manda esa misma imagen y una instrucción de "cambia solo
+     * esto". El Worker la describe otra vez y protege posiciones, colores y materiales del resto.
+     */
+    fun corregirConNube() {
+        val base = resultado ?: return
+        if (generando) return
+        if (!CuotaImagen.haAceptadoEnvio(contexto)) {
+            aviso = "Para corregir en la app hay que enviar la foto al servicio. Acepta el envío " +
+                "al generar una imagen, o rectifica a mano con el retoque local."
+            return
+        }
+        val instruccion = PromptReforma.paraCorreccion(
+            frase = correccion,
+            estancia = estancia?.nombre.orEmpty()
+        )
+        if (instruccion.isBlank()) {
+            aviso = "Escribe qué quieres corregir: una puerta movida, un color, un material…"
+            return
+        }
+        alcance.launch {
+            generando = true
+            aviso = ""
+            when (val salida = generador.generar(base, instruccion, CuotaImagen.dispositivo(contexto))) {
+                is ResultadoImagen.Ok -> {
+                    val mapa = withContext(Dispatchers.IO) {
+                        runCatching {
+                            BitmapFactory.decodeByteArray(salida.imagen, 0, salida.imagen.size)
+                        }.getOrNull()
+                    }
+                    if (mapa == null) {
+                        aviso = "La imagen corregida llegó, pero no se pudo abrir."
+                    } else {
+                        historial = historial + base
+                        fijarResultado(mapa)
+                        withContext(Dispatchers.IO) {
+                            Galeria.guardar(contexto, mapa, "obra-$estanciaId-corregida")
+                        }
+                        aviso = "Corregido y guardado en la estancia. Si no te gusta, pulsa «Deshacer»."
+                        CuotaImagen.fijar(contexto, salida.restantes ?: ((restantes ?: 1) - 1))
+                        restantes = CuotaImagen.restantes(contexto)
+                        correccion = ""
+                    }
+                }
+
+                is ResultadoImagen.SinCuota -> {
+                    aviso = salida.mensaje
+                    CuotaImagen.fijar(contexto, 0)
+                    restantes = 0
+                }
+
+                is ResultadoImagen.Fallo -> aviso = salida.mensaje
+            }
+            generando = false
+        }
+    }
+
     fun abrirEnGemini() {
         val original = foto
         if (original == null) {
@@ -374,6 +436,31 @@ fun PantallaRetoque(
                             modifier = Modifier.weight(1f)
                         ) { Text("Después") }
                     }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { corrigiendo = true },
+                            enabled = !generando && !trabajando,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Corregir algo") }
+                        if (historial.isNotEmpty()) {
+                            OutlinedButton(
+                                onClick = {
+                                    resultado = historial.last()
+                                    historial = historial.dropLast(1)
+                                    aviso = "Vuelto a la imagen anterior."
+                                },
+                                enabled = !generando,
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Deshacer") }
+                        }
+                    }
+                    Text(
+                        "Si una puerta, un color o un material han salido mal, corrige solo eso: " +
+                            "el resto se mantiene.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
@@ -470,8 +557,8 @@ fun PantallaRetoque(
             if (frase.isNotBlank() || aprobados.isNotEmpty()) {
                 TextButton(onClick = { verPrompt = !verPrompt }) {
                     Text(
-                        if (verPrompt) "Ocultar el texto que se envía"
-                        else "Ver el texto que se envía"
+                        if (verPrompt) "Ocultar los cambios que se envían"
+                        else "Ver los cambios que se envían"
                     )
                 }
                 if (verPrompt) {
@@ -479,11 +566,20 @@ fun PantallaRetoque(
                         color = MaterialTheme.colorScheme.surfaceVariant,
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text(
-                            promptDeLaObra().ifBlank { "Todavía no hay nada que enviar." },
-                            modifier = Modifier.padding(12.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                promptDeLaObra().ifBlank { "Todavía no hay nada que enviar." },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "El servicio añade además una descripción de tu foto (suelo, " +
+                                    "paredes, techo y dónde están puertas y ventanas) para no " +
+                                    "mover nada de sitio.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
             }
@@ -675,6 +771,57 @@ fun PantallaRetoque(
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (corrigiendo) {
+        AlertDialog(
+            onDismissRequest = { corrigiendo = false },
+            title = { Text("Corregir la imagen") },
+            text = {
+                Column {
+                    Text(
+                        "Di solo lo que está mal. Lo demás se queda como está.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = correccion,
+                        onValueChange = { correccion = it.take(300) },
+                        label = { Text("¿Qué quieres cambiar?") },
+                        placeholder = { Text("La puerta está a la derecha; el suelo es demasiado claro") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    listOf(
+                        listOf("mover la puerta", "suelo más oscuro"),
+                        listOf("paredes más blancas", "quitar la isla")
+                    ).forEach { fila ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            fila.forEach { idea ->
+                                FilterChip(
+                                    selected = correccion == idea,
+                                    onClick = { correccion = idea },
+                                    label = { Text(idea) }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        corrigiendo = false
+                        corregirConNube()
+                    },
+                    enabled = correccion.isNotBlank()
+                ) { Text("Corregir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { corrigiendo = false }) { Text("Cancelar") }
+            }
+        )
     }
 
     if (pedirPermiso) {
