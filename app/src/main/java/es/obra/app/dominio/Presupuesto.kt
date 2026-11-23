@@ -57,7 +57,9 @@ data class Partida(
     /** Estancia de la que sale la partida, para agrupar el presupuesto como en obra. */
     val estancia: String = "",
     /** Cambio del que sale, para poder cambiar cantidad y precio desde el presupuesto. */
-    val cambioId: Long = 0
+    val cambioId: Long = 0,
+    /** Partida del catálogo, para recordar el precio propio la próxima vez. */
+    val tipo: TipoCambio? = null
 ) {
     val importe: Double get() = cantidad * precio
 }
@@ -88,7 +90,8 @@ object Presupuesto {
                 unidad = cambio.tipo.unidad.etiqueta,
                 precio = cambio.precio,
                 estancia = estancia.nombre,
-                cambioId = cambio.id
+                cambioId = cambio.id,
+                tipo = cambio.tipo
             )
         }
     }

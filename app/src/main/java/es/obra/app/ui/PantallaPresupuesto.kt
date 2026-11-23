@@ -49,6 +49,7 @@ import androidx.compose.ui.unit.sp
 import es.obra.app.datos.Exportador
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
+import es.obra.app.datos.PreciosPropios
 import es.obra.app.datos.ProyectoRepositorio
 import es.obra.app.dominio.Proyecto
 import es.obra.app.dominio.Partida
@@ -405,6 +406,9 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
                         if (id > 0) {
                             alcance.launch {
                                 dao.actualizarImporte(id, nuevaCantidad, nuevoPrecio)
+                                partida.tipo?.let { tipo ->
+                                    PreciosPropios.recordar(contexto, tipo, nuevoPrecio)
+                                }
                                 editando = null
                                 refresco++
                             }

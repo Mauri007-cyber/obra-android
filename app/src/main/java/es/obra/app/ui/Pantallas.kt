@@ -87,6 +87,7 @@ sealed interface Pantalla {
     data class Obra(val id: Long) : Pantalla
     data class Medir(val id: Long) : Pantalla
     data class Escanear(val id: Long) : Pantalla
+    data class MedirFoto(val id: Long) : Pantalla
     data class Plano(val id: Long, val estanciaId: Long? = null) : Pantalla
     data class Visual(val id: Long) : Pantalla
     data class Presupuesto(val id: Long) : Pantalla
@@ -206,7 +207,22 @@ fun AppObra() {
 
         is Pantalla.Medir -> PantallaMedir(
             alVolver = { pantalla = Pantalla.Obra(actual.id) },
-            alEscanear = { pantalla = Pantalla.Escanear(actual.id) }
+            alEscanear = { pantalla = Pantalla.Escanear(actual.id) },
+            alFoto = { pantalla = Pantalla.MedirFoto(actual.id) }
+        )
+
+        is Pantalla.MedirFoto -> PantallaMedirFoto(
+            alVolver = { pantalla = Pantalla.Medir(actual.id) },
+            alAplicar = { superficie ->
+                alcance.launch {
+                    dao.obtenerObra(actual.id)?.let { obra ->
+                        dao.actualizarObra(
+                            obra.copy(metodo = "foto", superficieCerrada = superficie)
+                        )
+                    }
+                    pantalla = Pantalla.Obra(actual.id)
+                }
+            }
         )
 
         is Pantalla.Escanear -> PantallaEscanear(
@@ -849,7 +865,7 @@ private fun ContenidoObra(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaMedir(alVolver: () -> Unit, alEscanear: () -> Unit) {
+fun PantallaMedir(alVolver: () -> Unit, alEscanear: () -> Unit, alFoto: () -> Unit) {
     val contexto = LocalContext.current
     var arDisponible by remember { mutableStateOf<Boolean?>(null) }
 
@@ -918,9 +934,10 @@ fun PantallaMedir(alVolver: () -> Unit, alEscanear: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             OpcionMedida(
                 titulo = "Foto y una medida conocida",
-                detalle = "Foto del suelo, marcar las cuatro esquinas y decir cuánto mide la puerta.",
-                disponible = false,
-                nota = "Llega en la siguiente entrega (H1)"
+                detalle = "Foto del suelo, marcar las esquinas y decir cuánto mide una puerta o una baldosa.",
+                disponible = true,
+                nota = "Funciona sin conexión y la foto no sale del móvil",
+                alPulsar = alFoto
             )
             Spacer(Modifier.height(12.dp))
             OpcionMedida(

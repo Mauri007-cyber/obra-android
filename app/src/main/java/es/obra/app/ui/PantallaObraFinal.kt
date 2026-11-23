@@ -68,6 +68,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import es.obra.app.datos.PreciosPropios
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -266,11 +267,12 @@ fun PantallaObraFinal(
         DialogoCatalogo(
             estancia = estancia,
             alCerrar = { editando = null },
-            alElegir = { tipo, cantidad, acabado ->
+            alElegir = { tipo, cantidad, acabado, precioPropio ->
                 alcance.launch {
                     val nuevo = Cambio(
                         tipo = tipo,
                         cantidad = cantidad,
+                        precioPropio = precioPropio,
                         acabado = acabado,
                         estado = EstadoCambio.PROPUESTO
                     )
@@ -752,11 +754,13 @@ private fun EstadoBoton(
 private fun DialogoCatalogo(
     estancia: EstanciaProyecto,
     alCerrar: () -> Unit,
-    alElegir: (TipoCambio, Double, String) -> Unit
+    alElegir: (TipoCambio, Double, String, Double?) -> Unit
 ) {
+    val contexto = LocalContext.current
     var busqueda by remember { mutableStateOf("") }
     var elegido by remember { mutableStateOf<TipoCambio?>(null) }
     var cantidad by remember { mutableStateOf("") }
+    var precio by remember { mutableStateOf("") }
     var acabado by remember { mutableStateOf("") }
 
     val encontrados = if (busqueda.isBlank()) {
@@ -828,8 +832,17 @@ private fun DialogoCatalogo(
                                             1
                                         )
                                         acabado = candidato.acabados.firstOrNull().orEmpty()
+                                        precio = Cifra.numero(
+                                            PreciosPropios.propuesto(contexto, candidato),
+                                            2
+                                        )
                                     } else {
-                                        alElegir(candidato, 0.0, candidato.acabados.firstOrNull().orEmpty())
+                                        alElegir(
+                                            candidato,
+                                            0.0,
+                                            candidato.acabados.firstOrNull().orEmpty(),
+                                            PreciosPropios.leer(contexto, candidato)
+                                        )
                                     }
                                 }
                             }
@@ -868,11 +881,29 @@ private fun DialogoCatalogo(
                             }
                         }
                     }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = precio,
+                        onValueChange = { texto ->
+                            precio = texto.filter { c -> c.isDigit() || c == ',' || c == '.' }.take(8)
+                        },
+                        label = { Text("Tu precio (€ por ${tipo.unidad.etiqueta})") },
+                        supportingText = { Text("Se recuerda para las próximas obras.") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(Modifier.height(18.dp))
                     Button(
                         onClick = {
                             val valor = cantidad.replace(",", ".").trim().toDoubleOrNull() ?: 0.0
-                            alElegir(tipo, valor.coerceAtLeast(0.0), acabado)
+                            alElegir(
+                                tipo,
+                                valor.coerceAtLeast(0.0),
+                                acabado,
+                                precio.replace(",", ".").trim().toDoubleOrNull()
+                                    ?.takeIf { it > 0.0 }
+                            )
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp)
                     ) {
