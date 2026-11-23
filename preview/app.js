@@ -818,114 +818,6 @@ function materiales() {
         <p style="margin:6px 0 0;font-size:12px;line-height:1.45;color:var(--suave)">Cada luz enciende su zona en la foto y deja su sombra. Es lo que luego se pasa al electricista.</p>
       </div>
 
-      <button class="boton ancho" data-accion="ir" data-pantalla="ia">Probar cambios con IA</button>
-    </div>
-  </div>`;
-}
-
-function promptFinal() {
-  const puestas = LUCES.filter((l) => S.foto.luces[l.id]).map((l) => l.nombre.toLowerCase());
-  const fallos = S.foto.fallos.join('; ');
-  return [
-    'Reforma esta habitación usando la foto como base.',
-    'Mantén la geometría, el encuadre, la ventana de la izquierda, la puerta de la derecha y la luz que entra por la ventana.',
-    `Cambios pedidos: ${S.foto.prompt}`,
-    `Acabados: paredes ${nombreDe(PAREDES, S.foto.pared).toLowerCase()}, suelo ${nombreDe(SUELOS, S.foto.suelo).toLowerCase()}.`,
-    `Iluminación: ${puestas.length ? puestas.join(', ') : 'la que ya hay'}.`,
-    fallos ? `Corrige esto de la propuesta anterior: ${fallos}.` : '',
-    S.foto.correccion ? `Además: ${S.foto.correccion}` : '',
-    'No cambies el tamaño de la habitación ni el sitio de las puertas y ventanas.'
-  ]
-    .filter(Boolean)
-    .join('\n');
-}
-
-function ia() {
-  const fallosPosibles = [
-    'La puerta no está donde era',
-    'La ventana ha cambiado',
-    'El suelo no es ese',
-    'El color de la pared no es',
-    'Ha metido muebles de más',
-    'Todo demasiado oscuro',
-    'Parece de revista, no real',
-    'Ha cambiado el tamaño'
-  ];
-
-  return `
-  <div class="pantalla">
-    <div class="barra">
-      <button class="volver" data-accion="ir" data-pantalla="materiales">‹ Materiales</button>
-      <div class="derecha"><span class="chip borrador">Necesita internet y clave</span></div>
-    </div>
-    <div class="scroll">
-      <h2 class="titulo">Retoque con IA</h2>
-      <p class="sub">Se le pide con tus palabras y devuelve la foto cambiada. Tú decides qué ha hecho mal y se vuelve a pedir con la corrección.</p>
-
-      <div class="tarjeta" style="background:var(--acento-claro);border-color:rgba(168,74,6,.25)">
-        <p class="etiqueta" style="color:var(--acento);margin:0 0 4px">Antes de nada</p>
-        <p style="margin:0;font-size:12.5px;line-height:1.5">Esto no es gratis: cada imagen cuesta entre 3 y 7 céntimos y la foto sale del móvil. Por eso va apagado hasta que tú quieras, y sin ello la app sigue funcionando igual.</p>
-      </div>
-
-      ${capaFoto({})}
-
-      <div class="tarjeta" style="margin-top:12px">
-        <div class="campo">
-          <label>¿Qué quieres cambiar?</label>
-          <textarea id="ia-prompt">${S.foto.prompt}</textarea>
-        </div>
-        <div style="display:flex;gap:6px;flex-wrap:wrap">
-          ${['Suelo de tarima clara', 'Paredes blancas', 'Cocina integrada', 'Baño moderno']
-            .map(
-              (t) => `<button class="chip borrador" style="height:32px;border:1px solid var(--linea);background:#fff" data-accion="sugerencia" data-texto="${t}">${t}</button>`
-            )
-            .join('')}
-        </div>
-        <button class="boton ancho" style="margin-top:12px" data-accion="procesar">${S.foto.propuestas ? 'Volver a procesar' : 'Procesar'}</button>
-        ${S.foto.propuestas ? '<p style="margin:8px 0 0;font-size:11.5px;text-align:center;color:var(--suave)"><span class="simulacion">simulación</span> en la app aquí responde el modelo</p>' : ''}
-      </div>
-
-      ${S.foto.propuestas ? `
-      <div class="tarjeta">
-        <p class="etiqueta" style="margin:0 0 8px">Propuestas · ronda ${S.foto.ronda + 1}</p>
-        <div class="propuestas">
-          ${[0, 1, 2]
-            .map(
-              (i) => `<button class="propuesta ${S.foto.elegida === i ? 'activa' : ''}" data-accion="elegir" data-i="${i}">
-                <img src="img/habitacion.jpg" alt="Propuesta ${i + 1}" style="filter:${
-                  ['saturate(1.3) brightness(1.14) contrast(1.04)', 'sepia(0.38) saturate(1.45) brightness(1.1)', 'contrast(1.2) saturate(0.82) brightness(1.04) hue-rotate(-8deg)'][i]
-                }" />
-                <span>${i + 1}</span>
-              </button>`
-            )
-            .join('')}
-        </div>
-        <p style="margin:8px 0 0;font-size:12px;color:var(--suave)">Toca la que más se parezca. Ahora dime qué ha hecho mal.</p>
-      </div>
-
-      <div class="tarjeta">
-        <p class="etiqueta" style="margin:0 0 8px">¿Qué ha fallado?</p>
-        <div class="fallos">
-          ${fallosPosibles
-            .map(
-              (f) => `<button class="fallo ${S.foto.fallos.includes(f) ? 'marcado' : ''}" data-accion="fallo" data-texto="${f}">${f}</button>`
-            )
-            .join('')}
-        </div>
-        <div class="campo" style="margin-top:12px;margin-bottom:0">
-          <label>Y con tus palabras</label>
-          <textarea id="ia-correccion" placeholder="La puerta la ha puesto a la izquierda y el techo muy bajo">${S.foto.correccion}</textarea>
-        </div>
-        <button class="boton ancho" style="margin-top:10px" data-accion="corregir">Corregir y pedir otra vez</button>
-      </div>
-
-      <div class="tarjeta">
-        <div class="fila entre" style="margin-bottom:8px">
-          <p class="etiqueta" style="margin:0">Lo que se envía</p>
-          <button style="border:0;background:none;color:var(--acento);font-size:12px;font-weight:700" data-accion="ver-prompt">${S.foto.verPrompt ? 'Ocultar' : 'Ver'}</button>
-        </div>
-        ${S.foto.verPrompt ? `<div class="prompt-caja">${promptFinal().replace(/</g, '&lt;')}</div>` : '<p style="margin:0;font-size:12.5px;color:var(--suave)">Tu frase, los acabados, las luces y tus correcciones, juntos. Nada oculto.</p>'}
-      </div>` : ''}
     </div>
   </div>`;
 }
@@ -1098,16 +990,6 @@ const FICHAS = {
       'Cada luz añadida se guarda con su posición y se pasa al presupuesto como punto de luz.'
     ]
   },
-  ia: {
-    real: false,
-    titulo: 'Retoque con IA',
-    texto: 'La ventana de prompt, con el bucle que pedías: pedir, ver, decir qué está mal y volver a pedir.',
-    puntos: [
-      'El prompt se compone de lo que has elegido antes: acabados, luces y correcciones.',
-      'El usuario marca los fallos con botones o con sus palabras, sin escribir prompts técnicos.',
-      'Se puede ver el texto exacto que se envía. Y se puede apagar: la app funciona sin IA.'
-    ]
-  },
   ajustes: {
     real: true,
     titulo: 'Ajustes',
@@ -1129,7 +1011,6 @@ const PANTALLAS = {
   ensenar,
   foto,
   materiales,
-  ia,
   lista,
   editor,
   precios,
@@ -1358,52 +1239,7 @@ document.addEventListener('click', (ev) => {
       render();
       break;
 
-    case 'sugerencia':
-      S.foto.prompt = objetivo.dataset.texto;
-      render();
-      break;
-
-    case 'procesar':
-      S.foto.propuestas = true;
-      S.foto.elegida = 0;
-      S.foto.ronda = 0;
-      S.foto.fallos = [];
-      S.foto.correccion = '';
-      render();
-      break;
-
-    case 'elegir':
-      S.foto.elegida = Number(objetivo.dataset.i);
-      render();
-      break;
-
-    case 'fallo': {
-      const f = objetivo.dataset.texto;
-      S.foto.fallos = S.foto.fallos.includes(f)
-        ? S.foto.fallos.filter((x) => x !== f)
-        : [...S.foto.fallos, f];
-      render();
-      break;
-    }
-
-    case 'corregir':
-      S.foto.ronda += 1;
-      S.foto.verPrompt = true;
-      render();
-      avisar('Corrección enviada · ronda ' + (S.foto.ronda + 1));
-      break;
-
-    case 'ver-prompt':
-      S.foto.verPrompt = !S.foto.verPrompt;
-      render();
-      break;
   }
-});
-
-document.addEventListener('input', (ev) => {
-  const t = ev.target;
-  if (t.id === 'ia-prompt') S.foto.prompt = t.value;
-  if (t.id === 'ia-correccion') S.foto.correccion = t.value;
 });
 
 render();
