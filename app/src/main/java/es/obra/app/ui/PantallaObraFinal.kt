@@ -28,6 +28,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
@@ -97,7 +98,13 @@ import kotlinx.coroutines.withContext
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alPlano: (Long) -> Unit) {
+fun PantallaObraFinal(
+    obraId: Long,
+    dao: ObraDao,
+    alVolver: () -> Unit,
+    alPlano: (Long) -> Unit,
+    alRetoque: (Long) -> Unit = {}
+) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
 
@@ -226,6 +233,7 @@ fun PantallaObraFinal(obraId: Long, dao: ObraDao, alVolver: () -> Unit, alPlano:
                         },
                         alMedir = { midiendo = estancia },
                         alPlano = { alPlano(estancia.id) },
+                        alRetoque = { alRetoque(estancia.id) },
                         alPonerFoto = {
                             estanciaDeFoto = estancia.id
                             selectorFoto.launch(
@@ -384,7 +392,8 @@ private fun TarjetaEstancia(
     alBorrar: (Cambio) -> Unit,
     alPonerFoto: () -> Unit,
     alMedir: () -> Unit,
-    alPlano: () -> Unit
+    alPlano: () -> Unit,
+    alRetoque: () -> Unit
 ) {
     val contexto = LocalContext.current
     Surface(
@@ -437,6 +446,14 @@ private fun TarjetaEstancia(
                             .height(130.dp),
                         contentScale = ContentScale.Crop
                     )
+                }
+            }
+
+            if (estancia.foto.isNotBlank()) {
+                OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text("Retocar la foto · gratis")
                 }
             }
 

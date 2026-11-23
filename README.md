@@ -13,10 +13,15 @@ se llama a ningún servicio de pago.
   una lista de cambios elegidos de un catálogo de más de 45 partidas por oficio.
 - **Evaluación del cliente**: cada cambio se aprueba, se deja pendiente o se descarta. Lo
   aprobado es lo que cuenta para el dinero y para lo que se enseña.
+- **Retoque de la foto, gratis y en el móvil**: se tiñe el suelo, la pared y el techo de la
+  foto con el material aprobado, se encienden las luces nuevas y se compara el antes y el
+  después. No se sube la foto a ningún sitio y no hay nada que pagar.
+- **Lenguaje natural sin conexión**: «suelo de tarima clara y paredes blancas, tres enchufes»
+  se convierte en cambios del catálogo con sus acabados y cantidades. Son reglas sobre el
+  propio catálogo, no un servicio externo: entiende lo que conoce y no inventa partidas.
 - **Recorrido**: muestra la foto original y un listado de cambios aprobados por estancia.
-  No se genera una imagen de la obra terminada.
-- **Sin IA ni servicios de pago.** La app no envía fotos ni llama a ningún modelo: medir,
-  dibujar el plano, presupuestar, el PDF, las copias y el resumen se calculan en el móvil.
+- **Sin servicios de pago.** La app no envía fotos ni llama a ningún modelo: medir, dibujar el
+  plano, presupuestar, el PDF, las copias, el resumen y el retoque se calculan en el móvil.
   Todo funciona sin conexión y sin coste.
 - La única conexión de red es la comprobación opcional de actualizaciones en GitHub.
 
@@ -45,11 +50,22 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 
 ## Sin servicios de pago
 
-La app no incluye ningún cliente de IA, ni claves, ni direcciones de servicios externos. Se
-retiraron la generación de imágenes y el recorte de fondo porque dependían de servicios que
-pueden facturar, y el requisito es que la app sea gratuita para siempre. Si en el futuro se
-añade algo opcional, tendrá que ser gratuito, funcionar sin cuenta y no estar nunca en el
-camino crítico.
+La app no incluye ningún cliente de IA generativa, ni claves, ni direcciones de servicios
+externos. La generación de imágenes y el recorte de fondo que había se retiraron porque
+dependían de servicios que pueden facturar, y el requisito es que la app sea gratuita para
+siempre.
+
+Lo que sí se conserva es la funcionalidad útil, hecha en el propio móvil:
+
+- **Retoque local**: pinta el material aprobado sobre la zona de la foto que le corresponde
+  (suelo, pared, techo), conserva la textura y las sombras, y enciende las luces añadidas. Es
+  pintura sobre lo que ya hay: no se inventan muebles nuevos, porque eso exige un modelo de
+  generación que, gratis y sin subir la foto, hoy no existe.
+- **Entender la frase**: convierte lo escrito en lenguaje normal en partidas del catálogo, sin
+  red. Si la frase pide algo que no está en el catálogo, no se propone nada y se dice.
+
+Cualquier cosa que se añada en el futuro tendrá que ser gratuita, funcionar sin cuenta y no
+estar nunca en el camino crítico.
 
 ## Limitaciones importantes
 
@@ -67,5 +83,9 @@ scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositiv
 ```
 
 Las pruebas instrumentadas de `app/src/androidTest` cubren la restauración con foto, los planos
-por estancia, el presupuesto (solo aprobados, totales y bloqueo de precios inválidos) y las
-pantallas de copia. Se ejecutan en el emulador de GitHub Actions en cada subida a `main`.
+por estancia, el presupuesto (solo aprobados, totales y bloqueo de precios inválidos), las
+pantallas de copia y el retoque (frase entendida y foto retocada sin conexión). Se ejecutan en
+el emulador de GitHub Actions en cada subida a `main`.
+
+Las pruebas unitarias cubren, entre otras cosas, la interpretación de frases: acentos, acabados,
+cantidades escritas con número o con palabra y partidas que no se deben inventar.
