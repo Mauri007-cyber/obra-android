@@ -45,7 +45,7 @@ class PantallaPresupuestoUiTest {
         ).build()
 
     @Test
-    fun soloAparecenLosCambiosAprobadosYElTotalCalculado() = runBlocking {
+    fun soloAparecenLosCambiosAprobadosYElTotalCalculado(): Unit = runBlocking {
         val db = baseDeDatos()
         val dao = db.dao()
         try {
@@ -95,7 +95,7 @@ class PantallaPresupuestoUiTest {
     }
 
     @Test
-    fun sinAprobacionesNoInventaPartidas() = runBlocking {
+    fun sinAprobacionesNoInventaPartidas(): Unit = runBlocking {
         val db = baseDeDatos()
         val dao = db.dao()
         try {
@@ -112,7 +112,7 @@ class PantallaPresupuestoUiTest {
     }
 
     @Test
-    fun unPrecioInvalidoBloqueaElPresupuesto() = runBlocking {
+    fun unPrecioInvalidoBloqueaElPresupuesto(): Unit = runBlocking {
         val db = baseDeDatos()
         val dao = db.dao()
         try {
@@ -251,7 +251,7 @@ class CopiaObraUiTest {
         ).build()
 
     @Test
-    fun laObraOfreceGuardarLaCopiaConFotos() = runBlocking {
+    fun laObraOfreceGuardarLaCopiaConFotos(): Unit = runBlocking {
         val db = baseDeDatos()
         val dao = db.dao()
         try {
