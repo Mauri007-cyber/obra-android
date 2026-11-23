@@ -156,6 +156,32 @@ class PromptReformaTest {
     }
 
     @Test
+    fun `sin tocar huecos se conservan puertas y ventanas`() {
+        val prompt = PromptReforma.para(listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")))
+
+        assertTrue(prompt.contains("the windows, the doors"))
+    }
+
+    @Test
+    fun `si se cambia una ventana no se pide conservarla`() {
+        val prompt = PromptReforma.para(
+            listOf(cambio(TipoCambio.VENTANA_OSCILO, "aluminio imitación madera"))
+        )
+
+        assertFalse(prompt.contains("the windows"))
+        assertTrue(prompt.contains("the doors"))
+        assertTrue(prompt.contains("tilt-and-turn window"))
+    }
+
+    @Test
+    fun `si se cambia una puerta solo se conservan las ventanas`() {
+        val prompt = PromptReforma.para(listOf(cambio(TipoCambio.PUERTA_INTERIOR, "roble")))
+
+        assertFalse(prompt.contains("the doors"))
+        assertTrue(prompt.contains("the windows"))
+    }
+
+    @Test
     fun `la colocacion de la frase llega al prompt`() {
         val prompt = PromptReforma.paraLaPantalla(
             aprobados = listOf(cambio(TipoCambio.ISLA_COCINA, "mármol")),

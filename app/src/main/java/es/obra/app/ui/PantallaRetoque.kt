@@ -1,5 +1,6 @@
 package es.obra.app.ui
 
+import android.Manifest
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
@@ -120,6 +121,17 @@ fun PantallaRetoque(
 
     val generador = remember { ClienteCloudflare() }
 
+    // En Android 9 o anterior la galería necesita permiso de almacenamiento: se pide al entrar,
+    // no después de gastar una imagen. Si se deniega, la foto se queda en la estancia.
+    val permisoGaleria = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Galeria.necesitaPermiso(contexto)) {
+            permisoGaleria.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
+
     LaunchedEffect(obraId, estanciaId, refresco) {
         val obra = dao.obtenerObra(obraId)
         val proyecto = obra?.let { withContext(Dispatchers.IO) { ProyectoRepositorio.cargar(dao, it) } }
@@ -211,6 +223,9 @@ fun PantallaRetoque(
                         aviso = if (enGaleria) {
                             "Imagen generada y guardada en la galería. Es una vista previa " +
                                 "orientativa de la reforma."
+                        } else if (Galeria.necesitaPermiso(contexto)) {
+                            "Imagen generada y guardada en la estancia. Para verla también en la " +
+                                "galería, concede el permiso de almacenamiento a la app."
                         } else {
                             "Imagen generada y guardada en la estancia. No se pudo copiar a la " +
                                 "galería."

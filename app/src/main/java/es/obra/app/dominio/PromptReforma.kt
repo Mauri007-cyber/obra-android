@@ -48,10 +48,23 @@ object PromptReforma {
             " Client's note: ${frase.trim().replace(Regex("\\s+"), " ")}. "
         }
 
+        // Solo se pide conservar lo que no se ha pedido cambiar: si se cambia una ventana, las
+        // puertas siguen intactas, y al contrario. Antes el modelo recibía dos órdenes contrarias.
+        val tocaVentanas = visibles.any { it.tipo in VENTANAS }
+        val tocaPuertas = visibles.any { it.tipo in PUERTAS }
+        val conservar = buildList {
+            add("the camera position")
+            add("the perspective")
+            add("the room geometry")
+            add("the ceiling height")
+            if (!tocaVentanas) add("the windows")
+            if (!tocaPuertas) add("the doors")
+            add("all existing furniture")
+        }
+
         return buildString {
             append("Photorealistic interior renovation preview of this $sitio. ")
-            append("Keep the camera position, perspective, room geometry, ceiling height, ")
-            append("windows, doors and all existing furniture exactly as they are. ")
+            append("Keep ${conservar.joinToString(", ")} exactly as they are. ")
             append("Change only the following: ${frases.joinToString(", ")}.")
             if (colocaciones.isNotEmpty()) {
                 append(" Respect these positions: ${colocaciones.joinToString(" ")}")
@@ -83,6 +96,20 @@ object PromptReforma {
             colocaciones = Colocacion.enIngles(frase)
         )
     }
+
+    private val PUERTAS = setOf(
+        TipoCambio.PUERTA_INTERIOR,
+        TipoCambio.PUERTA_CORREDERA,
+        TipoCambio.PUERTA_BLINDADA
+    )
+
+    private val VENTANAS = setOf(
+        TipoCambio.VENTANA_NUEVA,
+        TipoCambio.VENTANA_OSCILO,
+        TipoCambio.VENTANA_A_BALCON,
+        TipoCambio.PERSIANA,
+        TipoCambio.LUCERNARIO
+    )
 
     private val TipoCambio.enciendeLuz: Boolean
         get() = this == TipoCambio.PUNTO_LUZ ||

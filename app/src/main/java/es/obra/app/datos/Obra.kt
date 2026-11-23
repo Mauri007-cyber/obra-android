@@ -349,7 +349,7 @@ private val MIGRACION_4_5 = object : Migration(4, 5) {
 }
 
 /** La imagen terminada se guarda en la estancia para que no se pierda al salir de la pantalla. */
-private val MIGRACION_5_6 = object : Migration(5, 6) {
+internal val MIGRACION_5_6 = object : Migration(5, 6) {
     override fun migrate(db: SupportSQLiteDatabase) {
         db.execSQL(
             "ALTER TABLE estancias ADD COLUMN fotoTerminada TEXT NOT NULL DEFAULT ''"
