@@ -12,9 +12,10 @@ plugins {
 val keystorePropsFile = rootProject.file("keystore.properties")
 
 // Dirección del Worker propio que genera la imagen (plan gratuito de Cloudflare).
-// Vacío = sin conectar: la app avisa y deja Gemini y el retoque local.
-//   scripts/build.sh :app:assembleDebug -PimagenUrl=https://obra-imagen.<cuenta>.workers.dev
-val urlImagen = providers.gradleProperty("imagenUrl").orNull.orEmpty()
+// Por defecto apunta al Worker del proyecto: una APK recién compilada nunca sale sin servicio.
+// Para usar otro Worker: -PimagenUrl=https://otro.workers.dev
+val urlImagen = providers.gradleProperty("imagenUrl").orNull
+    ?: "https://obra-imagen.obra-reformas.workers.dev"
 
 android {
     namespace = "es.obra.app"

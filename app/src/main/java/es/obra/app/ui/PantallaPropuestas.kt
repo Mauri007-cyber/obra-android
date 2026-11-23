@@ -2,6 +2,8 @@ package es.obra.app.ui
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -67,7 +69,7 @@ import kotlinx.coroutines.launch
  * No se manda ninguna foto: solo la guía y las medidas. Nada se escribe en la obra hasta que se
  * pulsa «Usar esta propuesta».
  */
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun PantallaPropuestas(
     obraId: Long,
@@ -202,20 +204,21 @@ fun PantallaPropuestas(
             Spacer(Modifier.height(18.dp))
             Text("¿Qué estás dispuesto a hacer?", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
-            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                Permiso.entries.chunked(2).forEach { fila ->
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        fila.forEach { opcion ->
-                            FilterChip(
-                                selected = opcion in permite,
-                                onClick = {
-                                    permite = if (opcion in permite) permite - opcion
-                                    else permite + opcion
-                                },
-                                label = { Text(opcion.etiqueta) }
-                            )
-                        }
-                    }
+            // FlowRow y no columnas fijas: con catorce chips, dos por fila se salían en pantallas
+            // estrechas y las etiquetas largas se cortaban.
+            FlowRow(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                Permiso.entries.forEach { opcion ->
+                    FilterChip(
+                        selected = opcion in permite,
+                        onClick = {
+                            permite = if (opcion in permite) permite - opcion
+                            else permite + opcion
+                        },
+                        label = { Text(opcion.etiqueta) }
+                    )
                 }
             }
 

@@ -237,7 +237,7 @@ albañil y su cliente. Devuelve SOLO un objeto JSON, sin texto alrededor, con es
 
 Reglas:
 - Exactamente 3 propuestas, con enfoques distintos: una económica, una equilibrada y una ambiciosa.
-- Entre 3 y 7 actuaciones por propuesta.
+- Entre 2 y 7 actuaciones por propuesta (con el catálogo recortado puede haber pocas).
 - "tipo" tiene que ser una de las claves del catálogo que recibes. Nunca inventes claves.
 - "estancia" tiene que ser una de las estancias que recibes, escrita igual.
 - "cantidad" en la unidad de esa partida (m², ml o ud). Si la partida es global, cantidad 1.

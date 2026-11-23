@@ -73,11 +73,13 @@ Para conectarlo hace falta una cuenta gratuita de Cloudflare, sin tarjeta:
 export CLOUDFLARE_API_TOKEN=...      # Workers Scripts, Workers KV Storage y Workers AI (Edit)
 export CLOUDFLARE_ACCOUNT_ID=...
 scripts/desplegar-worker.sh          # crea el contador y publica el Worker
-scripts/build.sh :app:assembleDebug -PimagenUrl=https://obra-imagen.<cuenta>.workers.dev
+scripts/build.sh :app:assembleDebug
 ```
 
-Sin `-PimagenUrl` la app funciona igual: el botón de generar avisa de que falta conectar el
-servicio, y Gemini y el retoque local siguen disponibles.
+La compilación ya apunta a `https://obra-imagen.obra-reformas.workers.dev`; solo hay que pasar
+`-PimagenUrl=https://otro.workers.dev` para usar un Worker distinto. Si se compila con
+`-PimagenUrl=` vacío, el botón de generar avisa de que falta conectar el servicio y quedan Gemini
+y el retoque local.
 
 ### 2. Abriendo la foto en Gemini (máxima calidad, dos toques)
 
