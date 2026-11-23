@@ -77,7 +77,7 @@ object Presupuesto {
     /** Impide presentar importes incompletos como un presupuesto terminado. */
     fun aprobadosValidos(proyecto: Proyecto): Boolean = proyecto.aprobados.all { cambio ->
         cambio.precio.isFinite() && cambio.precio > 0.0 &&
-            (cambio.tipo.unidad == Unidad.GLOBAL || (cambio.cantidad.isFinite() && cambio.cantidad > 0.0)) &&
+            (!cambio.tipo.mide || (cambio.cantidad.isFinite() && cambio.cantidad > 0.0)) &&
             cambio.importe.isFinite()
     }
 
@@ -86,7 +86,7 @@ object Presupuesto {
         estancia.aprobados.map { cambio ->
             Partida(
                 concepto = "${estancia.nombre}: ${cambio.tipo.nombre}",
-                cantidad = if (cambio.tipo.unidad == Unidad.GLOBAL) 1.0 else cambio.cantidad,
+                cantidad = if (!cambio.tipo.mide) 1.0 else cambio.cantidad,
                 unidad = cambio.tipo.unidad.etiqueta,
                 precio = cambio.precio,
                 estancia = estancia.nombre,

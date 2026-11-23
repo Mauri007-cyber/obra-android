@@ -25,7 +25,7 @@ data class Cambio(
 
     /** Las partidas enteras se cobran una vez; el resto, por cantidad. */
     val importe: Double
-        get() = if (tipo.unidad == Unidad.GLOBAL) precio else precio * cantidad.coerceAtLeast(0.0)
+        get() = if (!tipo.mide) precio else precio * cantidad.coerceAtLeast(0.0)
 
     val cerrado: Boolean get() = estado == EstadoCambio.APROBADO
 

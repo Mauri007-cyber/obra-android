@@ -30,6 +30,15 @@ class CambiosObraTest {
     )
 
     @Test
+    fun `una puerta sin cantidad se cobra como partida entera`() {
+        // Antes solo la unidad GLOBAL se trataba así: la puerta entraba con cantidad 0 y 0 €.
+        val puerta = cambio(TipoCambio.PUERTA_INTERIOR, cantidad = 0.0, estado = EstadoCambio.APROBADO)
+
+        assertEquals(TipoCambio.PUERTA_INTERIOR.precio, puerta.importe, 1e-9)
+        assertTrue(puerta.detalle.contains("partida entera"))
+    }
+
+    @Test
     fun `el catalogo cubre todos los oficios de una reforma`() {
         assertTrue(TipoCambio.entries.size >= 40)
 

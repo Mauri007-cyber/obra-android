@@ -106,6 +106,7 @@ fun PantallaObraFinal(
     obraId: Long,
     dao: ObraDao,
     alVolver: () -> Unit,
+    alPropuestas: () -> Unit,
     alPlano: (Long) -> Unit,
     alRetoque: (Long) -> Unit = {}
 ) {
@@ -200,6 +201,30 @@ fun PantallaObraFinal(
                 verticalArrangement = Arrangement.spacedBy(14.dp)
             ) {
                 item { CabeceraProyecto(actual) }
+
+                item {
+                    Surface(
+                        onClick = alPropuestas,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(
+                                "¿No está claro qué hacer?",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Marca lo que se puede tocar y la app propone tres escenarios con " +
+                                    "partidas y precios, para elegir uno.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
 
                 if (actual.estancias.isEmpty()) {
                     item {

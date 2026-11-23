@@ -34,18 +34,34 @@ Gemini y el retoque local.
 ## Contrato
 
 ```
-GET  /salud   → { "ok": true, "modelo": "@cf/black-forest-labs/flux-2-klein-4b" }
-POST /imagen  → { "imagen": "<base64>", "restantes": 19 }
-                429 { "error": "sin_cuota" }
+GET  /salud      → { ok, modelo, vision, texto }
+POST /imagen     → { imagen, descripcion, restantes }
+                   429 { error: "sin_cuota" }
+POST /propuestas → { propuestas: [ { titulo, resumen, actuaciones } ], restantes }
+                   429 { error: "sin_cuota" }
+POST /vision     → { descripcion }      (solo pruebas; la app no lo usa)
 ```
 
-Cuerpo: `{ prompt, foto (base64), dispositivo, ancho, alto }`. La app reduce la foto a menos de
-512 px de lado, que es lo que acepta el modelo como referencia.
+**Imagen.** Cuerpo: `{ prompt, foto (base64), dispositivo, ancho, alto }`. La app reduce la foto a
+menos de 512 px de lado, que es lo que acepta el modelo como referencia. Antes de generar, el
+Worker pide a **llama-3.2-11b-vision** una frase de lo que ya hay en la foto y la añade al prompt
+como «keep these real features». Así no se inventa el suelo, el techo ni la isla. Si la visión
+falla, se genera igual y el campo `descripcion` viene vacío.
+
+**Propuestas.** Cuerpo: `{ dispositivo, tipo, superficie, altura, presupuesto, estancias[],
+permite[], deseo, catalogo[] }`. El catálogo lo manda la app (`clave`, `nombre`, `unidad`) y el
+modelo de texto **solo puede usar esas claves**. El Worker valida, tira lo que no existe y
+devuelve hasta 3 escenarios de 3 a 7 partidas. La app vuelve a validar, calcula los importes con
+sus precios y las deja como propuestas. `?depurar=1` devuelve el texto crudo del modelo para
+diagnosticar.
 
 ## Límites que conviene saber
 
 - **20 imágenes por móvil y día** (`LIMITE_DIA`): evita que un solo teléfono se coma la cuota de
   todos. Se cuenta con una huella del identificador anónimo, no con el aparato.
+- **10 tandas de propuestas por móvil y día** (`LIMITE_PROPUESTAS`), y **30 descripciones** en la
+  ruta de pruebas (`LIMITE_VISION`).
+- La visión añade neuronas a cada imagen, pero sigue entrando de sobra en las 10.000 diarias.
 - La salida es 1K. El modelo puede mover algún mueble o una línea: es una vista previa, no un
   render de estudio.
 - El Worker es público (la app no puede guardar secretos). La protección real es la cuota diaria
