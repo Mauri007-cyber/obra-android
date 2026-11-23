@@ -30,19 +30,28 @@ object FraseACambios {
         Regla(TipoCambio.LAVABO, listOf("lavabo")),
         Regla(TipoCambio.GRIFERIA, listOf("griferia", "grifo")),
         Regla(TipoCambio.ESPEJO_BANO, listOf("espejo")),
+        Regla(TipoCambio.ISLA_COCINA, listOf("isla de cocina", "isla")),
         Regla(TipoCambio.ENCIMERA, listOf("encimera")),
         Regla(TipoCambio.MUEBLE_COCINA, listOf("mueble de cocina", "muebles de cocina", "cocina")),
         Regla(TipoCambio.ELECTRODOMESTICOS, listOf("electrodomestico")),
         Regla(TipoCambio.CAMPANA, listOf("campana")),
         Regla(TipoCambio.FRONTAL, listOf("frontal")),
         Regla(TipoCambio.SUELO_RADIANTE, listOf("suelo radiante")),
+        // «tarima vinílica» es vinílico, no tarima natural: la regla concreta va antes.
+        Regla(TipoCambio.SUELO_VINILICO, listOf("tarima vinilica", "vinilico", "vinilica")),
         Regla(TipoCambio.SUELO_TARIMA, listOf("tarima")),
         Regla(TipoCambio.SUELO_LAMINADO, listOf("laminado")),
         Regla(TipoCambio.SUELO_PORCELANICO, listOf("porcelanico", "porcelanato")),
-        Regla(TipoCambio.SUELO_VINILICO, listOf("vinilico")),
         Regla(TipoCambio.SUELO_MICROCEMENTO, listOf("microcemento en el suelo", "suelo de microcemento")),
         Regla(TipoCambio.MICROCEMENTO_PARED, listOf("microcemento en la pared", "microcemento en las paredes", "microcemento")),
         Regla(TipoCambio.RODAPIE, listOf("rodapie")),
+        Regla(
+            TipoCambio.TECHO_MADERA,
+            listOf(
+                "techo de madera", "techo imitacion madera", "techo madera", "techo de vigas",
+                "vigas de madera", "viga", "vigueta", "tabiques transversales"
+            )
+        ),
         Regla(TipoCambio.PINTURA_TECHO, listOf("pintar el techo", "pintar techo", "techo")),
         Regla(TipoCambio.FALSO_TECHO, listOf("falso techo", "pladur en el techo")),
         Regla(TipoCambio.ALICATADO, listOf("alicatar", "alicatado", "azulejo")),
@@ -51,6 +60,10 @@ object FraseACambios {
         Regla(TipoCambio.PINTURA_PLASTICA, listOf("pintar", "pintura", "pared", "paredes")),
         Regla(TipoCambio.PUERTA_CORREDERA, listOf("corredera")),
         Regla(TipoCambio.PUERTA_INTERIOR, listOf("puerta")),
+        Regla(
+            TipoCambio.VENTANA_OSCILO,
+            listOf("ventana abatible", "abatible", "oscilobatiente", "oscilo")
+        ),
         Regla(TipoCambio.VENTANA_NUEVA, listOf("ventana")),
         Regla(TipoCambio.PERSIANA, listOf("persiana")),
         Regla(TipoCambio.ARMARIO_EMPOTRADO, listOf("armario")),
@@ -115,8 +128,7 @@ object FraseACambios {
         val salida = mutableListOf<Cambio>()
 
         trozos.forEach { trozo ->
-            val regla = REGLAS.firstOrNull { regla -> regla.claves.any { trozo.contains(it) } }
-                ?: return@forEach
+            val regla = reglaDe(trozo) ?: return@forEach
             if (!vistos.add(regla.tipo)) return@forEach
 
             val acabado = acabadoDe(regla.tipo, trozo)
@@ -135,6 +147,18 @@ object FraseACambios {
         return salida
     }
 
+    /**
+     * La regla que corresponde al trozo. Además de las claves literales, «techo» junto a «madera»
+     * o «viga» es siempre un techo de madera: así vale también «techo imitiacion madera» con
+     * faltas o con palabras en medio, en vez de pintarlo y forrarlo a la vez.
+     */
+    private fun reglaDe(trozo: String): Regla? {
+        if (trozo.contains("techo") && (trozo.contains("madera") || trozo.contains("viga"))) {
+            return REGLAS.first { it.tipo == TipoCambio.TECHO_MADERA }
+        }
+        return REGLAS.firstOrNull { regla -> regla.claves.any { trozo.contains(it) } }
+    }
+
     /** Lo que el catálogo sabe de ese tipo y se ha dicho en la frase: «tarima clara» → roble. */
     private fun acabadoDe(tipo: TipoCambio, trozo: String): String {
         if (tipo.acabados.isEmpty()) return ""
@@ -142,9 +166,13 @@ object FraseACambios {
             .filter { it.isNotBlank() }
             .map { SINGULARES[it] ?: it }
 
-        tipo.acabados.firstOrNull { acabado ->
-            normalizar(acabado).split(" ").any { it in palabras }
-        }?.let { return it }
+        // Gana el acabado que más palabras comparte: «aluminio imitación madera» (3) antes que
+        // «aluminio blanco» (1), y «blanco roto» antes que un «blanco» suelto.
+        tipo.acabados
+            .map { acabado -> acabado to normalizar(acabado).split(" ").count { it in palabras } }
+            .filter { (_, aciertos) -> aciertos > 0 }
+            .maxByOrNull { (_, aciertos) -> aciertos }
+            ?.let { (acabado, _) -> return acabado }
 
         palabras.forEach { palabra ->
             tipo.acabados.firstOrNull { normalizar(it).contains(palabra) }?.let { return it }

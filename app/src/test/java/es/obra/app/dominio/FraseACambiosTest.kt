@@ -66,6 +66,34 @@ class FraseACambiosTest {
     }
 
     @Test
+    fun `entiende una reforma larga dictada de golpe`() {
+        val cambios = FraseACambios.interpretar(
+            "suelo de tarima vinilica imitacion madera gris, pintar las paredes de blanco roto " +
+                "liso, techo imitiacion madera oscura con tabiques transversales de madera de " +
+                "roble oscura, ventanas abatibles de aluminio imitacion madera oscuro, anadir una " +
+                "isla en el fondo de la habitacion a un metro de la pared de marmol de " +
+                "aproximadamente 2x0,5metros",
+            25.0
+        )
+
+        assertEquals(
+            listOf(
+                TipoCambio.SUELO_VINILICO,
+                TipoCambio.PINTURA_PLASTICA,
+                TipoCambio.TECHO_MADERA,
+                TipoCambio.VENTANA_OSCILO,
+                TipoCambio.ISLA_COCINA
+            ),
+            cambios.map { it.tipo }
+        )
+        assertEquals("gris", cambios[0].acabado)
+        assertEquals("blanco roto", cambios[1].acabado)
+        assertEquals("roble oscuro", cambios[2].acabado)
+        assertEquals("aluminio imitación madera", cambios[3].acabado)
+        assertEquals("mármol", cambios[4].acabado)
+    }
+
+    @Test
     fun `sin tildes tambien vale`() {
         assertEquals(
             listOf(TipoCambio.PINTURA_TECHO, TipoCambio.SUELO_LAMINADO),

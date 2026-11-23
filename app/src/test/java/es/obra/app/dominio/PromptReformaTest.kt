@@ -137,6 +137,25 @@ class PromptReformaTest {
     }
 
     @Test
+    fun `cuenta una reforma completa con techo de madera e isla`() {
+        val prompt = PromptReforma.para(
+            listOf(
+                cambio(TipoCambio.SUELO_VINILICO, "gris"),
+                cambio(TipoCambio.PINTURA_PLASTICA, "blanco roto"),
+                cambio(TipoCambio.TECHO_MADERA, "roble oscuro"),
+                cambio(TipoCambio.VENTANA_OSCILO, "aluminio imitación madera"),
+                cambio(TipoCambio.ISLA_COCINA, "mármol")
+            )
+        )
+
+        assertTrue(prompt.contains("replace the floor with grey vinyl flooring"))
+        assertTrue(prompt.contains("paint the walls off-white"))
+        assertTrue(prompt.contains("dark oak wooden ceiling with exposed transverse beams"))
+        assertTrue(prompt.contains("wood-effect aluminium tilt-and-turn window"))
+        assertTrue(prompt.contains("marble kitchen island"))
+    }
+
+    @Test
     fun `nombra la estancia cuando se sabe`() {
         val prompt = PromptReforma.para(
             cambios = listOf(cambio(TipoCambio.PINTURA_PLASTICA, "blanco")),
