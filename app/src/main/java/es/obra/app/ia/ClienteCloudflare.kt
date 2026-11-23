@@ -46,6 +46,9 @@ class ClienteCloudflare(
     private val url: String = BuildConfig.IMAGEN_URL
 ) : GeneradorImagen {
 
+    /** La dirección configurada es la base del Worker; la imagen vive en `/imagen`. */
+    private val punto: String = punto(url)
+
     override val configurado: Boolean get() = url.startsWith("https://")
 
     override suspend fun generar(
@@ -84,7 +87,7 @@ class ClienteCloudflare(
     }
 
     private fun enviar(cuerpo: String): Pair<Int, String> {
-        val conexion = (URL(url).openConnection() as HttpURLConnection).apply {
+        val conexion = (URL(punto).openConnection() as HttpURLConnection).apply {
             requestMethod = "POST"
             connectTimeout = 20_000
             readTimeout = 120_000
@@ -131,6 +134,9 @@ class ClienteCloudflare(
          * Tamaño de salida: el lado mayor a 1024 y el otro en múltiplos de 32, que es lo que
          * acepta el modelo. Una foto vertical no se convierte en cuadrada.
          */
+        /** Dirección exacta del servicio: la base puede venir con o sin barra final. */
+        internal fun punto(url: String): String = url.trim().trimEnd('/') + "/imagen"
+
         internal fun salida(ancho: Int, alto: Int): Pair<Int, Int> {
             if (ancho <= 0 || alto <= 0) return 1024 to 768
             val mayor = maxOf(ancho, alto).toDouble()
@@ -166,6 +172,7 @@ class ClienteCloudflare(
         /** Cloudflare corta con su filtro anti-bots (error 1010) antes de llegar al Worker. */
         private fun motivo(codigo: Int, cuerpo: String): String = when (codigo) {
             400 -> "La foto o el texto no son válidos para el servicio."
+            404 -> "La dirección del servicio de imagen no es la correcta. Actualiza la app."
             403 -> if (cuerpo.contains("1010")) {
                 "Cloudflare ha bloqueado la petición (403) por su filtro de seguridad (error 1010). " +
                     "Espera un minuto y vuelve a intentarlo; si sigue igual, usa " +

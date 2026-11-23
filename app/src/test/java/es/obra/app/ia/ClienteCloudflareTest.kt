@@ -102,6 +102,20 @@ class ClienteCloudflareTest {
     }
 
     @Test
+    fun `la imagen se pide en su ruta y no en la raiz`() {
+        assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto("https://obra.workers.dev"))
+        assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto("https://obra.workers.dev/"))
+        assertEquals("https://obra.workers.dev/imagen", ClienteCloudflare.punto(" https://obra.workers.dev// "))
+    }
+
+    @Test
+    fun `un 404 se explica como direccion equivocada`() {
+        val respuesta = ClienteCloudflare.interpretar(404 to "{\"error\":\"Ruta no encontrada\"}")
+
+        assertTrue((respuesta as ResultadoImagen.Fallo).mensaje.contains("dirección"))
+    }
+
+    @Test
     fun `sin direccion configurada lo dice en vez de fallar`() {
         val cliente = ClienteCloudflare("")
 
