@@ -43,7 +43,7 @@ actualizar**: habría que desinstalar y reinstalar. Verifica que tienes una copi
 
 ## Limitaciones importantes
 
-- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Una prueba instrumentada ejecutada en emulador Android ejercita la restauración con una foto de prueba; faltan pruebas entre dispositivos y de la interfaz.
+- No se ha probado la app en un dispositivo real ni la migración de bases de datos con datos reales. Las pruebas instrumentadas se ejecutan en un emulador Android (API 35): restauran una copia con foto, planos y presupuesto, y recorren las pantallas de presupuesto, plano y copia con una base de datos en memoria. Faltan pruebas entre dispositivos, con fotos reales y de la cámara/AR.
 - Cada estancia permite editar su superficie, altura y plano. El presupuesto incluye únicamente cambios aprobados por estancia y exige cantidades y precios válidos; sin aprobaciones no genera partidas. Hay que comprobar las medidas y los precios en obra.
 - La APK de depuración usa el identificador `es.obra.app.prueba`: se instala como una app distinta, sin acceso a los datos ni a las actualizaciones de la versión normal.
 - Existe una copia ZIP por obra con datos y fotos de estancias, y restauración como una obra nueva. La lectura comprueba la integridad del ZIP y que las fotos puedan decodificarse. Una prueba instrumentada ha pasado en emulador Android con datos de prueba; no se ha probado la restauración entre dispositivos con datos reales. No borres los originales basándote en esta copia. La exportación antigua `.obra` sigue sin fotos y no es restaurable.
@@ -61,4 +61,9 @@ npm --prefix worker test              # lógica, handler, configuración y pipel
 npm --prefix worker run test:workerd  # Durable Object, cuota global y concurrencia en workerd
 scripts/build.sh :app:testDebugUnitTest
 scripts/build.sh :app:connectedDebugAndroidTest # requiere emulador o dispositivo conectado
+```
+
+Las pruebas instrumentadas de `app/src/androidTest` cubren la restauración con foto, los planos
+por estancia, el presupuesto (solo aprobados, totales y bloqueo de precios inválidos) y las
+pantallas de copia. Se ejecutan en el emulador de GitHub Actions en cada subida a `main`.
 ```
