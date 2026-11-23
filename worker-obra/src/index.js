@@ -242,6 +242,8 @@ Reglas:
 - "estancia" tiene que ser una de las estancias que recibes, escrita igual.
 - "cantidad" en la unidad de esa partida (m², ml o ud). Si la partida es global, cantidad 1.
 - Usa cantidades coherentes con las superficies que recibes; no sumes más m² que los disponibles.
+- Si renuevas un baño o una cocina, incluye las tomas de agua, los desagües y el termo que hagan
+  falta: forman parte de esa obra y están en el catálogo.
 - "motivo" en una frase corta, en español, para el cliente (máximo 120 caracteres).
 - "resumen" máximo 220 caracteres, en español de España, sin prometer precios exactos.
 - No incluyas presupuesto, coste ni texto legal: la app calcula los importes.
