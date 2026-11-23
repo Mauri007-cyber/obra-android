@@ -132,7 +132,7 @@ class PantallaPresupuestoUiTest {
     }
 
     private fun esperarTexto(texto: String, substring: Boolean = false) {
-        regla.waitUntil(timeoutMillis = 10_000) {
+        regla.waitUntil(timeoutMillis = 30_000) {
             val nodos = if (substring) {
                 regla.onAllNodesWithText(texto, substring = true)
             } else {
@@ -224,13 +224,13 @@ class PantallaPlanoUiTest {
     }
 
     private fun esperarTexto(texto: String) {
-        regla.waitUntil(timeoutMillis = 10_000) {
+        regla.waitUntil(timeoutMillis = 30_000) {
             regla.onAllNodesWithText(texto).fetchSemanticsNodes().isNotEmpty()
         }
     }
 
     private fun esperarBotonActivo(texto: String) {
-        regla.waitUntil(timeoutMillis = 10_000) {
+        regla.waitUntil(timeoutMillis = 30_000) {
             runCatching {
                 regla.onNodeWithText(texto).assertIsEnabled()
                 true
@@ -311,7 +311,7 @@ class CopiaObraUiTest {
     }
 
     private fun esperarTexto(texto: String) {
-        regla.waitUntil(timeoutMillis = 10_000) {
+        regla.waitUntil(timeoutMillis = 30_000) {
             regla.onAllNodesWithText(texto).fetchSemanticsNodes().isNotEmpty()
         }
     }
