@@ -50,6 +50,8 @@ class PromptFraseRealTest {
         assertTrue(prompt, prompt.contains("at the far end of the room"))
         assertTrue(prompt, prompt.contains("about 1 m from the wall"))
         assertTrue(prompt, prompt.contains("freestanding"))
+        assertTrue(prompt, prompt.contains("about 90 cm high"))
+        assertTrue(prompt, prompt.contains("low and long"))
     }
 
     @Test

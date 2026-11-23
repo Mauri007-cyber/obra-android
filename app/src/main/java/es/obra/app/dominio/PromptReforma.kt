@@ -66,27 +66,40 @@ object PromptReforma {
             if (!vaciar) add("all existing furniture")
         }
 
-        return buildString {
-            append("Photorealistic interior renovation preview of this $sitio. ")
-            append("Keep ${conservar.joinToString(", ")} exactly as they are. ")
-            append("Change only the following: ${frases.joinToString(", ")}.")
-            if (objetos.isNotEmpty()) {
-                // Lo añadido se repite al final: con muchas partidas el modelo tiende a olvidar
-                // el mueble nuevo, que es justo lo que el cliente mira.
-                append(" These added items must be clearly visible: ${objetos.joinToString(", ")}.")
-            }
-            if (vaciar) {
-                append(" Remove all tools, rubble, construction debris and temporary objects; ")
-                append("the room must be empty apart from the changes listed.")
-            }
-            if (colocaciones.isNotEmpty()) {
-                append(" Respect these positions: ${colocaciones.joinToString(" ")}")
-            }
-            append(luz)
-            append(nota)
-            append("Interior photograph, natural daylight, realistic materials and shadows, ")
-            append("sharp focus, no text, no people, no watermark.")
-        }.replace(Regex("\\s+"), " ").trim()
+        val cuerpo = "Photorealistic interior renovation preview of this $sitio. " +
+            "Keep ${conservar.joinToString(", ")} exactly as they are. " +
+            "Change only the following: ${frases.joinToString(", ")}."
+        // Lo añadido se repite: con muchas partidas el modelo tiende a olvidar el mueble nuevo,
+        // que es justo lo que el cliente mira.
+        val anadidos = if (objetos.isEmpty()) "" else
+            " These added items must be clearly visible: ${objetos.joinToString(", ")}."
+        val vaciado = if (!vaciar) "" else
+            " Remove all tools, rubble, construction debris and temporary objects; " +
+                "the room must be empty apart from the changes listed."
+        val posiciones = if (colocaciones.isEmpty()) "" else
+            " Respect these positions: ${colocaciones.joinToString(" ")}"
+        val cola = " Interior photograph, natural daylight, realistic materials and shadows, " +
+            "sharp focus, no text, no people, no watermark."
+
+        // Orden de importancia: si no cabe todo, se van cayendo la nota, la luz y el remate, pero
+        // nunca las partidas ni la colocación que ha dictado el cliente.
+        return limitar(listOf(cuerpo, posiciones, vaciado, anadidos, luz, nota, cola))
+            .replace(Regex("\\s+"), " ")
+            .trim()
+    }
+
+    /** El Worker rechaza prompts largos: aquí se recorta sin cortar palabras ni frases a medias. */
+    const val MAXIMO = 1200
+
+    private fun limitar(partes: List<String>): String {
+        val salida = StringBuilder(partes.first())
+        partes.drop(1).forEach { parte ->
+            if (parte.isNotBlank() && salida.length + parte.length <= MAXIMO) salida.append(parte)
+        }
+        val texto = salida.toString()
+        if (texto.length <= MAXIMO) return texto
+        val corte = texto.take(MAXIMO).substringBeforeLast(' ').trimEnd()
+        return if (corte.endsWith('.')) corte else "$corte."
     }
 
     /**
@@ -169,7 +182,13 @@ object PromptReforma {
 
     private fun fraseObjeto(cambio: Cambio): String {
         val material = material(cambio)
-        return "add a new $material"
+        // «tres enchufes» o «2 focos» tienen que llegar como cantidad, no como un objeto suelto.
+        val cuantos = if (cambio.tipo.unidad == Unidad.UD && cambio.cantidad >= 2) {
+            "${cambio.cantidad.toInt()} new"
+        } else {
+            "a new"
+        }
+        return "add $cuantos $material"
     }
 
     /** «a interior door» chirría y despista al modelo: se elige a/an por la primera letra. */

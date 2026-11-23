@@ -68,7 +68,7 @@ class ClienteCloudflare(
         val cuerpo = jsonImagen.encodeToString(
             PeticionImagen(
                 foto = Base64.getEncoder().encodeToString(jpeg),
-                prompt = prompt,
+                prompt = recortar(prompt),
                 dispositivo = dispositivo,
                 ancho = ancho,
                 alto = alto
@@ -129,6 +129,22 @@ class ClienteCloudflare(
     }.getOrNull()
 
     companion object {
+
+        /** El Worker acepta 1500; se deja margen para no recibir nunca un 400 por longitud. */
+        internal const val MAXIMO_PROMPT = 1400
+
+        /**
+         * Última red de seguridad: un prompt larguísimo se corta por frase, nunca por la mitad
+         * de una palabra. Lo normal es que [PromptReforma] ya lo haya recortado antes.
+         */
+        internal fun recortar(prompt: String, maximo: Int = MAXIMO_PROMPT): String {
+            val limpio = prompt.trim().replace(Regex("\\s+"), " ")
+            if (limpio.length <= maximo) return limpio
+            val corte = limpio.take(maximo)
+            val porFrase = corte.substringBeforeLast('.')
+            if (porFrase.length > maximo / 2) return porFrase.trimEnd() + "."
+            return corte.substringBeforeLast(' ').trimEnd() + "."
+        }
 
         /**
          * Tamaño de salida: el lado mayor a 1024 y el otro en múltiplos de 32, que es lo que

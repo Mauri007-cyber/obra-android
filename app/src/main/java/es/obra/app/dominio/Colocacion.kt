@@ -47,6 +47,9 @@ object Colocacion {
         "(\\d+(?:[.,]\\d+)?)\\s*(?:x|por)\\s*(\\d+(?:[.,]\\d+)?)\\s*(?:m|metros?)\\b"
     )
 
+    /** «90 cm de alto»: sin altura el modelo dibuja una barra alta o una caja. */
+    private val ALTURAS = Regex("(\\d+(?:[.,]\\d+)?)\\s*(?:cm|centimetros?)\\b")
+
     /** El objeto se nombra antes de la posición: «isla … a un metro de la pared». */
     private val DIRECCIONES = listOf(
         "en el fondo" to "at the far end of the room",
@@ -91,8 +94,18 @@ object Colocacion {
             salida.add("Place the $objeto $ingles.")
         }
 
-        // Sin esto el modelo arrima la isla a la primera pared que encuentra.
         if ("kitchen island" in objetosColocados) {
+            val alto = ALTURAS.find(limpia)?.groupValues?.get(1)?.replace(',', '.')
+            val medida = if (alto == null) {
+                "about 90 cm high (standard counter height)"
+            } else {
+                "about ${formato(alto)} cm high"
+            }
+            salida.add(
+                "The kitchen island is $medida, low and long like a real kitchen island, " +
+                    "and those dimensions must be respected exactly."
+            )
+            // Sin esto el modelo arrima la isla a la primera pared que encuentra.
             salida.add("The kitchen island is freestanding, with clear floor space on all sides.")
         }
 
