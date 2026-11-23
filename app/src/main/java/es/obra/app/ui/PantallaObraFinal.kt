@@ -24,6 +24,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,6 +35,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -82,6 +84,7 @@ import es.obra.app.dominio.Cambio
 import es.obra.app.dominio.Cifra
 import es.obra.app.dominio.EstadoCambio
 import es.obra.app.dominio.EstanciaProyecto
+import es.obra.app.dominio.FraseACambios
 import es.obra.app.dominio.Proyecto
 import es.obra.app.dominio.TipoCambio
 import java.io.File
@@ -117,6 +120,7 @@ fun PantallaObraFinal(
     var creandoEstancia by remember { mutableStateOf(false) }
     var ensenando by remember { mutableStateOf(false) }
     var estanciaDeFoto by remember { mutableStateOf<Long?>(null) }
+    var dictando by remember { mutableStateOf<EstanciaProyecto?>(null) }
 
     fun recargar() {
         refresco++
@@ -234,6 +238,7 @@ fun PantallaObraFinal(
                         alMedir = { midiendo = estancia },
                         alPlano = { alPlano(estancia.id) },
                         alRetoque = { alRetoque(estancia.id) },
+                        alDictar = { dictando = estancia },
                         alPonerFoto = {
                             estanciaDeFoto = estancia.id
                             selectorFoto.launch(
@@ -271,6 +276,20 @@ fun PantallaObraFinal(
                     )
                     ProyectoRepositorio.guardar(dao, estancia.id, nuevo)
                     editando = null
+                    recargar()
+                }
+            }
+        )
+    }
+
+    dictando?.let { estancia ->
+        DialogoDictado(
+            estancia = estancia,
+            alCerrar = { dictando = null },
+            alGuardar = { cambios ->
+                alcance.launch {
+                    cambios.forEach { cambio -> ProyectoRepositorio.guardar(dao, estancia.id, cambio) }
+                    dictando = null
                     recargar()
                 }
             }
@@ -372,6 +391,133 @@ private fun CabeceraProyecto(proyecto: Proyecto) {
     }
 }
 
+/**
+ * Escribir como se le hablaría al oficial. No hace falta saber el catálogo ni escribir bien:
+ * se muestran los trabajos entendidos y lo que ha sobrado, antes de añadir nada.
+ */
+@Composable
+private fun DialogoDictado(
+    estancia: EstanciaProyecto,
+    alCerrar: () -> Unit,
+    alGuardar: (List<Cambio>) -> Unit
+) {
+    var frase by remember { mutableStateOf("") }
+    var analisis by remember { mutableStateOf<FraseACambios.Analisis?>(null) }
+
+    Dialog(onDismissRequest = alCerrar) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Qué cambiar en ${estancia.nombre}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = alCerrar) {
+                        Icon(Icons.Filled.Close, contentDescription = "Cerrar")
+                    }
+                }
+
+                Text(
+                    "Escribe como se lo dirías al oficial, aunque tenga faltas o no lleve comas. " +
+                        "Por ejemplo: «pintame el piso de blanco y pon una isla».",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = frase,
+                    onValueChange = {
+                        frase = it
+                        analisis = null
+                    },
+                    label = { Text("Qué quieres cambiar") },
+                    placeholder = { Text("Suelo de tarima y paredes blancas") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        analisis = FraseACambios.analizar(
+                            frase = frase,
+                            superficie = estancia.superficie,
+                            altura = estancia.altura
+                        )
+                    },
+                    enabled = frase.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Ver qué entiendo") }
+
+                val resultado = analisis
+                if (resultado != null) {
+                    Spacer(Modifier.height(12.dp))
+                    if (resultado.cambios.isEmpty()) {
+                        Text(
+                            "No he reconocido ningún trabajo. Prueba con «suelo de tarima», " +
+                                "«pintar paredes de blanco» o «tres enchufes».",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Tinta.rojo
+                        )
+                    } else {
+                        Text(
+                            "He entendido ${resultado.cambios.size} trabajo(s):",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        resultado.cambios.forEach { cambio ->
+                            Text("· ${cambio.linea}", style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                    if (resultado.noEntendido.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "No sé qué hacer con «${resultado.noEntendido.joinToString("», «")}». " +
+                                "Puedes añadir esos trabajos a mano con «Añadir cambio».",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Tinta.rojo
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = {
+                        val cambios = analisis?.cambios.orEmpty().map {
+                            it.copy(estado = EstadoCambio.PROPUESTO)
+                        }
+                        if (cambios.isNotEmpty()) alGuardar(cambios)
+                    },
+                    enabled = analisis?.cambios?.isNotEmpty() == true,
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Añadir los cambios", style = MaterialTheme.typography.labelLarge)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Se añaden como propuestas: revísalas y apruébalas antes de que entren en " +
+                        "el presupuesto.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CifraBloque(etiqueta: String, valor: String, modifier: Modifier = Modifier) {
     Column(modifier) {
@@ -393,7 +539,8 @@ private fun TarjetaEstancia(
     alPonerFoto: () -> Unit,
     alMedir: () -> Unit,
     alPlano: () -> Unit,
-    alRetoque: () -> Unit
+    alRetoque: () -> Unit,
+    alDictar: () -> Unit
 ) {
     val contexto = LocalContext.current
     Surface(
@@ -482,6 +629,24 @@ private fun TarjetaEstancia(
             OutlinedButton(onClick = alPlano, modifier = Modifier.fillMaxWidth()) {
                 Text("Abrir plano de esta estancia")
             }
+            // Lo primero para quien no conoce el catálogo: escribirlo como se lo diría al oficial.
+            Button(
+                onClick = alDictar,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Tinta.tinta,
+                    contentColor = Tinta.papel
+                ),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Icon(
+                    Icons.Filled.RecordVoiceOver,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Escribir qué quiero cambiar", style = MaterialTheme.typography.labelLarge)
+            }
+            Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = alAnadir, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))

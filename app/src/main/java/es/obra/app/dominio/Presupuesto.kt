@@ -53,7 +53,11 @@ data class Partida(
     val concepto: String,
     val cantidad: Double,
     val unidad: String,
-    val precio: Double
+    val precio: Double,
+    /** Estancia de la que sale la partida, para agrupar el presupuesto como en obra. */
+    val estancia: String = "",
+    /** Cambio del que sale, para poder cambiar cantidad y precio desde el presupuesto. */
+    val cambioId: Long = 0
 ) {
     val importe: Double get() = cantidad * precio
 }
@@ -82,7 +86,9 @@ object Presupuesto {
                 concepto = "${estancia.nombre}: ${cambio.tipo.nombre}",
                 cantidad = if (cambio.tipo.unidad == Unidad.GLOBAL) 1.0 else cambio.cantidad,
                 unidad = cambio.tipo.unidad.etiqueta,
-                precio = cambio.precio
+                precio = cambio.precio,
+                estancia = estancia.nombre,
+                cambioId = cambio.id
             )
         }
     }

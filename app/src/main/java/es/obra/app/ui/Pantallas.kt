@@ -12,16 +12,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Euro
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -103,6 +109,17 @@ fun AppObra() {
         hayVersionNueva = actualizador.comprobar() is EstadoActualizacion.Disponible
     }
 
+    // Dentro de una obra, las cuatro cosas que se hacen siempre, a un toque y siempre visibles.
+    val obraEnCurso: Long? = when (val p = pantalla) {
+        is Pantalla.Obra -> p.id
+        is Pantalla.ObraFinal -> p.id
+        is Pantalla.Presupuesto -> p.id
+        is Pantalla.Visual -> p.id
+        else -> null
+    }
+
+    Column(Modifier.fillMaxSize()) {
+    Box(Modifier.weight(1f)) {
     when (val actual = pantalla) {
         Pantalla.Inicio -> PantallaInicio(
             dao = dao,
@@ -203,6 +220,41 @@ fun AppObra() {
             alVolver = { pantalla = Pantalla.Inicio }
         )
     }
+    }
+    if (obraEnCurso != null) {
+        BarraPasos(obraId = obraEnCurso, pantalla = pantalla, alIr = { pantalla = it })
+    }
+    }
+}
+
+/** Las cuatro pantallas de una obra. Siempre abajo, siempre en el mismo orden. */
+@Composable
+private fun BarraPasos(obraId: Long, pantalla: Pantalla, alIr: (Pantalla) -> Unit) {
+    val pasos = listOf(
+        Triple("Medidas", Icons.Filled.Straighten, Pantalla.Obra(obraId)),
+        Triple("Cambios", Icons.Filled.EditNote, Pantalla.ObraFinal(obraId)),
+        Triple("Presupuesto", Icons.Filled.Euro, Pantalla.Presupuesto(obraId)),
+        Triple("Ver", Icons.Filled.Image, Pantalla.Visual(obraId))
+    )
+    Surface(tonalElevation = 6.dp) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            pasos.forEach { (etiqueta, icono, destino) ->
+                val activo = pantalla::class == destino::class
+                val color = if (activo) Tinta.obra else MaterialTheme.colorScheme.onSurfaceVariant
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { alIr(destino) }
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(icono, contentDescription = etiqueta, tint = color)
+                    Text(etiqueta, style = MaterialTheme.typography.labelLarge, color = color)
+                }
+            }
+        }
+    }
 }
 
 /* ------------------------------------------------------------------ */
@@ -254,7 +306,7 @@ fun PantallaInicio(
                 containerColor = Tinta.obra,
                 contentColor = Tinta.tinta,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Nueva obra") }
+                text = { Text("Empezar obra nueva") }
             )
         }
     ) { relleno ->
@@ -277,12 +329,18 @@ fun PantallaInicio(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Pulsa «Nueva obra», escribe las medidas de la estancia y tendrás la superficie y los materiales calculados. Todo se queda en el móvil.",
+                    "Pulsa «Empezar obra nueva». Solo hace falta un nombre; las medidas se ponen después, a mano o con la cámara. Todo se queda en el móvil.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         } else {
+            Text(
+                "Toca una obra para seguir donde lo dejaste.",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize(),
@@ -596,6 +654,26 @@ private fun ContenidoObra(
     ) {
         Spacer(Modifier.height(8.dp))
 
+        Seccion("Los 4 pasos de la obra")
+        TarjetaPaso(1, "Medir la habitación", "Largo, ancho y alto. También con la cámara.", alMedir)
+        Spacer(Modifier.height(8.dp))
+        TarjetaPaso(2, "Decir qué cambia", "Elige los trabajos y apruébalos.", alProyecto)
+        Spacer(Modifier.height(8.dp))
+        TarjetaPaso(3, "Ver el presupuesto", "Lo que se cobra, con IVA y PDF.", alPresupuesto)
+        Spacer(Modifier.height(8.dp))
+        TarjetaPaso(4, "Enseñar cómo queda", "La foto terminada de cada estancia.", alVisual)
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = alPlano,
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text("Abrir el plano")
+        }
+
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(20.dp))
+
         Seccion("Medidas de la estancia")
         CampoNumero(
             etiqueta = "Largo",
@@ -689,59 +767,6 @@ private fun ContenidoObra(
         )
 
         Spacer(Modifier.height(28.dp))
-        Button(
-            onClick = alProyecto,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Tinta.tinta,
-                contentColor = Tinta.papel
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            Text("Proyecto: estancias y cambios", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        Button(
-            onClick = alVisual,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Tinta.verde,
-                contentColor = Tinta.papel
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            Text("Enseñar al cliente", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = alPlano,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Abrir el plano", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = alMedir,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Medir de otra forma")
-        }
-        Spacer(Modifier.height(10.dp))
-        Button(
-            onClick = alPresupuesto,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Presupuesto", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
         OutlinedButton(
             onClick = {
                 alcance.launch {
@@ -1214,3 +1239,43 @@ private fun LinkTexto(texto: String) {
 
 private fun cifra(valor: Double): String =
     if (valor <= 0.0) "" else Geometria.formatear(valor, decimales = 2).trimEnd('0').trimEnd(',')
+
+/** Un paso con su número grande: se toca la tarjeta entera, no hay que apuntar a nada pequeño. */
+@Composable
+private fun TarjetaPaso(numero: Int, titulo: String, detalle: String, alPulsar: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = alPulsar),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Row(
+            modifier = Modifier.padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Surface(color = Tinta.obra, contentColor = Tinta.tinta, shape = CircleShape) {
+                Box(Modifier.size(36.dp), contentAlignment = Alignment.Center) {
+                    Text(
+                        "$numero",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                }
+            }
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(
+                    titulo,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    detalle,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}

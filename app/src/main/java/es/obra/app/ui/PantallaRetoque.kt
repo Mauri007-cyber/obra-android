@@ -490,17 +490,21 @@ fun PantallaRetoque(
                             aviso = "La estancia todavía no está cargada."
                             return@OutlinedButton
                         }
-                        val cambios = FraseACambios.interpretar(
+                        val analisis = FraseACambios.analizar(
                             frase = frase,
                             superficie = actual.superficie,
                             altura = actual.altura
                         )
-                        entendidos = cambios
-                        aviso = if (cambios.isEmpty()) {
-                            "No he reconocido ningún trabajo en esa frase. Prueba con «suelo de " +
-                                "tarima», «pintar paredes» o «tres enchufes»."
-                        } else {
-                            ""
+                        entendidos = analisis.cambios
+                        aviso = when {
+                            analisis.cambios.isEmpty() ->
+                                "No he reconocido ningún trabajo. Prueba a escribir, por ejemplo, " +
+                                    "«suelo de tarima y paredes blancas» o «tres enchufes»."
+                            analisis.noEntendido.isNotEmpty() ->
+                                "He entendido ${analisis.cambios.size} trabajo(s). No sé qué hacer " +
+                                    "con «${analisis.noEntendido.joinToString("», «")}». Repítelo con " +
+                                    "otras palabras o añádelo a mano en los cambios."
+                            else -> ""
                         }
                     },
                     modifier = Modifier.weight(1f)

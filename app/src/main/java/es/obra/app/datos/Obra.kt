@@ -259,6 +259,10 @@ interface ObraDao {
     @Query("UPDATE cambios SET estado = :estado WHERE id = :id")
     suspend fun cambiarEstado(id: Long, estado: String)
 
+    /** Cantidad y precio desde el propio presupuesto, sin pasar por el catálogo. */
+    @Query("UPDATE cambios SET cantidad = :cantidad, precioPropio = :precio WHERE id = :id")
+    suspend fun actualizarImporte(id: Long, cantidad: Double, precio: Double)
+
     @Query("DELETE FROM cambios WHERE id = :id")
     suspend fun borrarCambio(id: Long)
 
