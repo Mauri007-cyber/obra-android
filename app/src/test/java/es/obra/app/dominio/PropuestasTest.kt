@@ -132,6 +132,43 @@ class PropuestasTest {
     }
 
     @Test
+    fun `renovar bano abre tambien fontaneria`() {
+        val bano = Propuestas.catalogoPara(setOf("renovar baño"))!!
+
+        assertTrue(
+            TipoCambio.TOMA_AGUA in bano &&
+                TipoCambio.DESAGUE in bano &&
+                TipoCambio.TERMO in bano
+        )
+        assertTrue(TipoCambio.PLATO_DUCHA in bano)
+    }
+
+    @Test
+    fun `pintar es de interior y la fachada va en su propio chip`() {
+        assertTrue(TipoCambio.PINTURA_PLASTICA in Permiso.PINTAR.abre)
+        assertTrue(TipoCambio.PINTURA_FACHADA !in Permiso.PINTAR.abre)
+        assertTrue(TipoCambio.PINTURA_FACHADA in Permiso.FACHADA.abre)
+    }
+
+    @Test
+    fun `cada chip abre al menos dos partidas`() {
+        Permiso.entries.forEach { permiso ->
+            assertTrue(
+                "«${permiso.etiqueta}» abre ${permiso.abre.size}",
+                permiso.abre.size >= 2
+            )
+        }
+    }
+
+    @Test
+    fun `ninguna partida del catalogo se queda sin chip`() {
+        val abiertas = Permiso.entries.flatMap { it.abre }.toSet()
+        val huerfanas = TipoCambio.entries.filter { it !in abiertas }.map { it.name }
+
+        assertTrue("Partidas sin chip: $huerfanas", huerfanas.isEmpty())
+    }
+
+    @Test
     fun `una partida que el cliente no autorizo no entra aunque el modelo la devuelva`() {
         val cuerpo = """
             {"propuestas":[{"titulo":"Pintura","actuaciones":[

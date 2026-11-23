@@ -101,10 +101,38 @@ enum class Permiso(val etiqueta: String, val abre: Set<TipoCambio>) {
         )
     ),
     CAMBIAR_PUERTAS("cambiar puertas y ventanas", tiposDe(Ambito.CARPINTERIA)),
-    RENOVAR_COCINA("renovar cocina", tiposDe(Ambito.COCINA)),
-    RENOVAR_BANO("renovar baño", tiposDe(Ambito.BANO)),
+    ALICATAR(
+        "alicatar o revestir paredes",
+        tiposDe(Ambito.PARED) + TipoCambio.QUITAR_ALICATADO
+    ),
     PINTAR("pintar", tiposDe(Ambito.PINTURA)),
-    ELECTRICIDAD("electricidad", tiposDe(Ambito.ELECTRICIDAD))
+    CAMBIAR_TECHO("cambiar el techo", tiposDe(Ambito.TECHO)),
+    RENOVAR_COCINA("renovar cocina", tiposDe(Ambito.COCINA)),
+    // Un baño nuevo necesita mover agua, desagüe y termo, no solo cambiar los sanitarios.
+    RENOVAR_BANO(
+        "renovar baño",
+        tiposDe(Ambito.BANO) + setOf(
+            TipoCambio.TOMA_AGUA,
+            TipoCambio.DESAGUE,
+            TipoCambio.TERMO
+        )
+    ),
+    ELECTRICIDAD("electricidad", tiposDe(Ambito.ELECTRICIDAD)),
+    CLIMATIZACION("calefacción y aire", tiposDe(Ambito.CLIMATIZACION)),
+    AISLAR(
+        "aislar e impermeabilizar",
+        setOf(TipoCambio.AISLAMIENTO, TipoCambio.IMPERMEABILIZAR)
+    ),
+    MOBILIARIO("muebles a medida", tiposDe(Ambito.MOBILIARIO)),
+    // La fachada es obra de exterior, no «pintar» por dentro: tiene su propio chip.
+    FACHADA(
+        "fachada y exterior",
+        setOf(
+            TipoCambio.PINTURA_FACHADA,
+            TipoCambio.AISLAMIENTO,
+            TipoCambio.IMPERMEABILIZAR
+        )
+    )
 }
 
 object Propuestas {
