@@ -73,6 +73,8 @@ async function generar(env, prompt, foto, ancho, alto) {
   formulario.append("prompt", prompt);
   formulario.append("width", String(lado(ancho, 1024)));
   formulario.append("height", String(lado(alto, 768)));
+  // El modelo obedece algo más al prompt con guidance alto (por defecto viene bajo).
+  formulario.append("guidance", "7");
   formulario.append("input_image_0", new Blob([bytes], { type: "image/jpeg" }), "estancia.jpg");
 
   // FormData no expone su cuerpo: hay que serializarlo en una Response para obtener el boundary.

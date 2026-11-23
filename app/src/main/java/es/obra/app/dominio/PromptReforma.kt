@@ -84,12 +84,17 @@ object PromptReforma {
                 "the room must be empty apart from the changes listed."
         val posiciones = if (colocaciones.isEmpty()) "" else
             " Respect these positions: ${colocaciones.joinToString(" ")}"
+        // El modelo tiende a «terminar» la habitación entera. Si el suelo o el techo no se tocan,
+        // hay que decirlo con todas las letras o los inventa (terrazo, techo de pladur…).
+        val intocable = if (tocaSuelo && tocaTecho) "" else
+            " Every other surface must stay exactly as in the input photograph, including any " +
+                "unfinished floor or ceiling: do not finish, replace or cover them."
         val cola = " Interior photograph, natural daylight, realistic materials and shadows, " +
             "sharp focus, no text, no people, no watermark."
 
         // Orden de importancia: si no cabe todo, se van cayendo la nota, la luz y el remate, pero
         // nunca las partidas ni la colocación que ha dictado el cliente.
-        return limitar(listOf(cuerpo, posiciones, vaciado, anadidos, luz, nota, cola))
+        return limitar(listOf(cuerpo, intocable, posiciones, vaciado, anadidos, luz, nota, cola))
             .replace(Regex("\\s+"), " ")
             .trim()
     }

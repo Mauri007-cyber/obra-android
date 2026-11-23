@@ -162,6 +162,8 @@ class PromptReformaTest {
 
         assertTrue(antesDeCambiar, antesDeCambiar.contains("the floor"))
         assertTrue(antesDeCambiar, antesDeCambiar.contains("the ceiling"))
+        assertTrue(prompt, prompt.contains("exactly as in the input photograph"))
+        assertTrue(prompt, prompt.contains("unfinished floor"))
     }
 
     @Test
