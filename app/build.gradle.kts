@@ -11,6 +11,16 @@ plugins {
 
 val keystorePropsFile = rootProject.file("keystore.properties")
 
+// Dirección del Worker propio que genera la imagen (plan gratuito de Cloudflare).
+// Por defecto apunta al Worker del proyecto: una APK recién compilada nunca sale sin servicio.
+// Para usar otro Worker: -PimagenUrl=https://otro.workers.dev
+// Un -PimagenUrl= vacío también cae en el Worker del proyecto: si no, la APK sale desconectada
+// y el botón de generar imagen queda apagado sin explicación (lo vigila ConfiguracionTest).
+val urlImagen = providers.gradleProperty("imagenUrl").orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
+    ?: "https://obra-imagen.obra-reformas.workers.dev"
+
 android {
     namespace = "es.obra.app"
     compileSdk = 36
@@ -28,8 +38,8 @@ android {
                 abiFilters += listOf("arm64-v8a", "armeabi-v7a")
             }
         }
-        versionCode = 13
-        versionName = "0.9.4"
+        versionCode = 14
+        versionName = "0.9.5"
 
         // Manifiesto de autoactualización. Cambiar por la URL real del release.
         buildConfigField(
@@ -37,6 +47,8 @@ android {
             "UPDATE_URL",
             "\"https://raw.githubusercontent.com/Mauri007-cyber/obra-android/main/update.json\""
         )
+
+        buildConfigField("String", "IMAGEN_URL", "\"$urlImagen\"")
     }
 
     signingConfigs {

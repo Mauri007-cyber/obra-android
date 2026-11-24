@@ -1,0 +1,15 @@
+name = "obra-imagen"
+main = "src/index.js"
+compatibility_date = "2026-11-01"
+
+# La cuenta de Workers AI vive en el Worker, nunca en el APK.
+[ai]
+binding = "AI"
+
+# Contador por móvil y día. El id lo rellena scripts/desplegar-worker.sh la primera vez.
+[[kv_namespaces]]
+binding = "CONTADORES"
+id = "ab4a45397f4647ab90d2843b984c3d79"
+
+[observability]
+enabled = true

@@ -35,13 +35,20 @@ object PdfPresupuesto {
         tarifas: Tarifas,
         base: Double,
         iva: Double,
-        total: Double
+        total: Double,
+        estado: String = "borrador",
+        validezDias: Int = 30,
+        notas: String = ""
     ): File {
         val documento = PdfDocument()
-        val paginas = partidas.chunked(15).ifEmpty { listOf(emptyList()) }
+        // Doce por hoja: con quince, los totales y las notas del cliente se salían del A4.
+        val paginas = partidas.chunked(12).ifEmpty { listOf(emptyList()) }
         paginas.forEachIndexed { indice, lineas ->
             val pagina = documento.startPage(PdfDocument.PageInfo.Builder(ANCHO, ALTO, indice + 1).create())
-            dibujar(pagina.canvas, obra, lineas, tarifas, base, iva, total, indice == paginas.lastIndex)
+            dibujar(
+                pagina.canvas, obra, lineas, tarifas, base, iva, total,
+                indice == paginas.lastIndex, estado, validezDias, notas
+            )
             documento.finishPage(pagina)
         }
 
@@ -60,7 +67,10 @@ object PdfPresupuesto {
         base: Double,
         iva: Double,
         total: Double,
-        mostrarTotales: Boolean
+        mostrarTotales: Boolean,
+        estado: String,
+        validezDias: Int,
+        notas: String
     ) {
         lienzo.drawColor(Color.WHITE)
 
@@ -84,7 +94,24 @@ object PdfPresupuesto {
         val fecha = SimpleDateFormat("d 'de' MMMM 'de' yyyy", Locale.forLanguageTag("es-ES"))
             .format(Date())
         lienzo.drawText(fecha, MARGEN, y, gris)
-        y += 26f
+        y += 14f
+        lienzo.drawText(
+            "Estado: ${estado.replaceFirstChar { it.uppercase() }}",
+            MARGEN,
+            y,
+            gris
+        )
+        y += 14f
+        if (validezDias > 0) {
+            lienzo.drawText(
+                "Válido durante $validezDias días desde la fecha",
+                MARGEN,
+                y,
+                gris
+            )
+            y += 14f
+        }
+        y += 12f
 
         val linea = pincel(Color.rgb(214, 209, 199), 1f)
         lienzo.drawLine(MARGEN, y, ANCHO - MARGEN, y, linea)
@@ -148,6 +175,52 @@ object PdfPresupuesto {
             y,
             gris
         )
+
+        if (notas.isNotBlank()) {
+            y += 22f
+            lienzo.drawText(
+                "NOTAS PARA EL CLIENTE",
+                MARGEN,
+                y,
+                pincel(Color.rgb(107, 114, 128), 9f, negrita = true)
+            )
+            y += 15f
+            parrafo(lienzo, notas, MARGEN, y, ANCHO - MARGEN * 2, gris)
+        }
+    }
+
+    /** Texto largo en varias líneas, midiendo de verdad con la fuente del PDF. */
+    private fun parrafo(
+        lienzo: Canvas,
+        texto: String,
+        x: Float,
+        yInicial: Float,
+        ancho: Float,
+        pincel: Paint
+    ): Float {
+        var y = yInicial
+        var linea = ""
+        texto.replace("\n", " \n ").split(" ").forEach { palabra ->
+            if (palabra == "\n") {
+                lienzo.drawText(linea, x, y, pincel)
+                linea = ""
+                y += 14f
+                return@forEach
+            }
+            val prueba = if (linea.isEmpty()) palabra else "$linea $palabra"
+            if (pincel.measureText(prueba) > ancho && linea.isNotEmpty()) {
+                lienzo.drawText(linea, x, y, pincel)
+                y += 14f
+                linea = palabra
+            } else {
+                linea = prueba
+            }
+        }
+        if (linea.isNotEmpty()) {
+            lienzo.drawText(linea, x, y, pincel)
+            y += 14f
+        }
+        return y
     }
 
     private fun pincel(color: Int, tamano: Float, negrita: Boolean = false): Paint =

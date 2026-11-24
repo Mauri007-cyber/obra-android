@@ -1,5 +1,6 @@
 package es.obra.app.ui
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -15,8 +16,10 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -31,6 +34,7 @@ import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -38,12 +42,14 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import es.obra.app.datos.Exportador
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
+import es.obra.app.datos.PreciosPropios
 import es.obra.app.datos.ProyectoRepositorio
 import es.obra.app.dominio.Proyecto
 import es.obra.app.dominio.Partida
@@ -73,11 +79,19 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     var numeroEstancias by remember { mutableStateOf<Int?>(null) }
     var proyecto by remember { mutableStateOf<Proyecto?>(null) }
     var totalCambios by remember { mutableStateOf(0) }
+    var refresco by remember { mutableIntStateOf(0) }
+    var editando by remember { mutableStateOf<Partida?>(null) }
+    var estadoPresupuesto by remember { mutableStateOf("borrador") }
+    var validez by remember { mutableStateOf("30") }
+    var notasCliente by remember { mutableStateOf("") }
 
-    LaunchedEffect(obraId) {
+    LaunchedEffect(obraId, refresco) {
         val guardada = dao.obtenerObra(obraId)
         obra = guardada
         tarifas = Tarifas.desdeTexto(guardada?.tarifas ?: "")
+        estadoPresupuesto = guardada?.estadoPresupuesto ?: "borrador"
+        validez = (guardada?.validezDias ?: 30).toString()
+        notasCliente = guardada?.notasPresupuesto.orEmpty()
         val estancias = dao.estancias(obraId)
         totalCambios = dao.cambios(obraId).size
         proyecto = guardada?.let { ProyectoRepositorio.cargar(dao, it) }
@@ -89,6 +103,24 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         val guardada = obra ?: return@LaunchedEffect
         if (Tarifas.desdeTexto(guardada.tarifas) != tarifas) {
             dao.guardarTarifas(guardada.id, tarifas.aTexto())
+        }
+    }
+
+    // Se guarda solo: escribir las notas no debe obligar a pulsar nada.
+    LaunchedEffect(obraId, estadoPresupuesto, validez, notasCliente) {
+        delay(700)
+        val guardada = obra ?: return@LaunchedEffect
+        val dias = validez.toIntOrNull()?.coerceIn(1, 365) ?: 30
+        if (guardada.estadoPresupuesto != estadoPresupuesto ||
+            guardada.validezDias != dias ||
+            guardada.notasPresupuesto != notasCliente
+        ) {
+            dao.guardarDatosPresupuesto(guardada.id, dias, notasCliente, estadoPresupuesto)
+            obra = guardada.copy(
+                estadoPresupuesto = estadoPresupuesto,
+                validezDias = dias,
+                notasPresupuesto = notasCliente
+            )
         }
     }
 
@@ -108,9 +140,19 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
         alcance.launch {
             try {
                 val archivo = withContext(Dispatchers.IO) {
-                    PdfPresupuesto.generar(contexto, guardada, partidas, tarifas, base, iva, total)
+                    PdfPresupuesto.generar(
+                        contexto, guardada, partidas, tarifas, base, iva, total,
+                        estado = estadoPresupuesto,
+                        validezDias = validez.toIntOrNull() ?: 30,
+                        notas = notasCliente
+                    )
                 }
-                if (!Exportador.compartir(contexto, archivo, tipo = "application/pdf")) errorPdf = "No se pudo abrir el menú para compartir."
+                if (!Exportador.compartir(contexto, archivo, tipo = "application/pdf")) {
+                    errorPdf = "No se pudo abrir el menú para compartir."
+                } else if (estadoPresupuesto == "borrador") {
+                    // Como en la app de referencia: enviar el PDF lo pasa a «enviado».
+                    estadoPresupuesto = "enviado"
+                }
             } catch (error: Exception) {
                 errorPdf = error.message ?: "No se pudo crear el PDF."
             } finally {
@@ -152,19 +194,54 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
 
             if (partidas.isEmpty()) {
                 Text(
-                    if (numeroEstancias == null) "Cargando medidas…" else if (cambiosDesconocidos) "Esta obra contiene partidas que ya no están en el catálogo. No se puede calcular un presupuesto completo sin revisarlas." else if (valoresInvalidos) "Revisa los trabajos aprobados: cada uno necesita un precio y una cantidad válidos antes de generar el presupuesto." else "Todavía no hay trabajos aprobados. Aprueba los cambios que quieras incluir en cada estancia.",
+                    if (numeroEstancias == null) "Cargando medidas…" else if (cambiosDesconocidos)                     "Esta obra tiene trabajos que ya no están en el catálogo. Vuelve a «Proyecto de la obra» y revisa esa estancia." else if (valoresInvalidos) "Falta un precio o una cantidad en algún trabajo aprobado. Vuelve a «Proyecto de la obra» y revísalo." else "Todavía no hay trabajos aprobados. Vuelve a «Proyecto de la obra», elige los trabajos y márcalos como aprobados.",
                     style = MaterialTheme.typography.bodyLarge
                 )
                 Spacer(Modifier.height(16.dp))
             } else {
                 Text(
-                    "Cambios aprobados por estancia",
+                    "Lo que cuesta la obra",
                     style = MaterialTheme.typography.headlineMedium
                 )
-                Spacer(Modifier.height(12.dp))
+                Spacer(Modifier.height(4.dp))
+                Text(
+                    "${partidas.size} partida(s) en ${partidas.map { it.estancia }.distinct().size} " +
+                        "estancia(s). Toca una partida para cambiar la cantidad o el precio.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(16.dp))
 
-                partidas.forEach { partida ->
-                    FilaPartida(partida)
+                // Agrupado por estancia, como se enseña en obra: cada habitación con su subtotal.
+                partidas.groupBy { it.estancia.ifBlank { "Obra" } }.forEach { (estancia, filas) ->
+                    Surface(
+                        color = Tinta.obra,
+                        contentColor = Tinta.tinta,
+                        shape = MaterialTheme.shapes.small
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(horizontal = 14.dp, vertical = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                estancia,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.weight(1f))
+                            Text(
+                                Presupuesto.euros(filas.sumOf { it.importe }),
+                                style = MaterialTheme.typography.titleSmall
+                            )
+                        }
+                    }
+                    Spacer(Modifier.height(4.dp))
+                    filas.forEach { partida ->
+                        FilaPartida(partida, alPulsar = { editando = partida })
+                    }
+                    Spacer(Modifier.height(16.dp))
                 }
 
                 Spacer(Modifier.height(16.dp))
@@ -211,6 +288,48 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
                 )
             }
 
+            Spacer(Modifier.height(24.dp))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+            Spacer(Modifier.height(16.dp))
+            Text(
+                "Datos del presupuesto",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Spacer(Modifier.height(8.dp))
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                listOf(
+                    "borrador" to "Borrador",
+                    "enviado" to "Enviado",
+                    "aceptado" to "Aceptado"
+                ).forEach { (valor, etiqueta) ->
+                    FilterChip(
+                        selected = estadoPresupuesto == valor,
+                        onClick = { estadoPresupuesto = valor },
+                        label = { Text(etiqueta) }
+                    )
+                }
+            }
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = validez,
+                onValueChange = { validez = it.filter(Char::isDigit).take(3) },
+                label = { Text("Validez (días)") },
+                singleLine = true,
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                modifier = Modifier.fillMaxWidth()
+            )
+            Spacer(Modifier.height(10.dp))
+            OutlinedTextField(
+                value = notasCliente,
+                // El PDF es una hoja: más de mil caracteres se saldría por abajo y se perdería.
+                onValueChange = { notasCliente = it.take(1000) },
+                label = { Text("Notas para el cliente (opcional)") },
+                placeholder = { Text("Materiales incluidos, plazos, forma de pago…") },
+                minLines = 3,
+                modifier = Modifier.fillMaxWidth()
+            )
+
             Spacer(Modifier.height(8.dp))
             TextButton(onClick = { ajustando = !ajustando }) {
                 Text(if (ajustando) "Ocultar precios" else "Ajustar precios")
@@ -239,18 +358,105 @@ fun PantallaPresupuesto(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
             Spacer(Modifier.height(28.dp))
         }
     }
+
+    // Cambiar cantidad o precio sin salir del presupuesto.
+    editando?.let { partida ->
+        var cantidad by remember(partida) {
+            mutableStateOf(Presupuesto.cantidad(partida.cantidad).replace(".", ","))
+        }
+        var precio by remember(partida) {
+            mutableStateOf(Presupuesto.cantidad(partida.precio).replace(".", ","))
+        }
+        // Un cero o un texto sin número dejaban el trabajo fuera del presupuesto sin avisar:
+        // la pantalla se quedaba en «falta un precio» y no se sabía cuál.
+        val cantidadValida = cantidad.replace(',', '.').trim().toDoubleOrNull()
+            ?.let { it.isFinite() && it > 0.0 } == true
+        val precioValido = precio.replace(',', '.').trim().toDoubleOrNull()
+            ?.let { it.isFinite() && it > 0.0 } == true
+        AlertDialog(
+            onDismissRequest = { editando = null },
+            title = { Text("Cambiar cantidad o precio") },
+            text = {
+                Column {
+                    Text(
+                        partida.concepto.removePrefix("${partida.estancia}: "),
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = cantidad,
+                        onValueChange = { cantidad = it },
+                        label = { Text("Cantidad (${partida.unidad})") },
+                        isError = !cantidadValida,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(8.dp))
+                    OutlinedTextField(
+                        value = precio,
+                        onValueChange = { precio = it },
+                        label = { Text("Precio por ${partida.unidad} (€)") },
+                        isError = !precioValido,
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    if (!cantidadValida || !precioValido) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "Escribe una cantidad y un precio mayores que cero.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    enabled = cantidadValida && precioValido,
+                    onClick = {
+                        val nuevaCantidad = cantidad.replace(',', '.').toDoubleOrNull()
+                            ?: partida.cantidad
+                        val nuevoPrecio = precio.replace(',', '.').toDoubleOrNull()
+                            ?: partida.precio
+                        val id = partida.cambioId
+                        if (id > 0) {
+                            alcance.launch {
+                                dao.actualizarImporte(id, nuevaCantidad, nuevoPrecio)
+                                partida.tipo?.let { tipo ->
+                                    PreciosPropios.recordar(contexto, tipo, nuevoPrecio)
+                                }
+                                editando = null
+                                refresco++
+                            }
+                        } else {
+                            editando = null
+                        }
+                    }
+                ) { Text("Guardar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { editando = null }) { Text("Cancelar") }
+            }
+        )
+    }
 }
 
 @Composable
-private fun FilaPartida(partida: Partida) {
+private fun FilaPartida(partida: Partida, alPulsar: () -> Unit) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
+            .clickable(onClick = alPulsar)
             .padding(vertical = 8.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f)) {
-            Text(partida.concepto, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                partida.concepto.removePrefix("${partida.estancia}: "),
+                style = MaterialTheme.typography.bodyLarge
+            )
             Text(
                 "${Presupuesto.cantidad(partida.cantidad)} ${partida.unidad} × " +
                     "${Presupuesto.cantidad(partida.precio)} €",

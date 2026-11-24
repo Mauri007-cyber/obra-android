@@ -3,6 +3,7 @@ package es.obra.app.ui
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -21,12 +22,15 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.ExtendedFloatingActionButton
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -62,6 +66,8 @@ import es.obra.app.ar.ArDisponible
 import es.obra.app.ar.EstadoAr
 import es.obra.app.datos.CopiaObra
 import es.obra.app.datos.Exportador
+import es.obra.app.datos.borrarFoto
+import es.obra.app.datos.EstanciaEntity
 import es.obra.app.datos.HuecoEntity
 import es.obra.app.datos.MuroEntity
 import es.obra.app.datos.ObraDao
@@ -81,10 +87,12 @@ sealed interface Pantalla {
     data class Obra(val id: Long) : Pantalla
     data class Medir(val id: Long) : Pantalla
     data class Escanear(val id: Long) : Pantalla
+    data class MedirFoto(val id: Long) : Pantalla
     data class Plano(val id: Long, val estanciaId: Long? = null) : Pantalla
     data class Visual(val id: Long) : Pantalla
     data class Presupuesto(val id: Long) : Pantalla
     data class ObraFinal(val id: Long) : Pantalla
+    data class Propuestas(val id: Long) : Pantalla
     data class Retoque(val id: Long, val estanciaId: Long) : Pantalla
     data object Actualizar : Pantalla
 }
@@ -114,12 +122,17 @@ fun AppObra() {
 
         Pantalla.NuevaObra -> PantallaNuevaObra(
             alVolver = { pantalla = Pantalla.Inicio },
-            alCrear = { nombre, direccion, cliente ->
+            alCrear = { nombre, direccion, cliente, estancia ->
                 alcance.launch {
                     val id = dao.insertarObra(
                         ObraEntity(nombre = nombre, direccion = direccion, cliente = cliente)
                     )
-                    pantalla = Pantalla.Obra(id)
+                    // Si la obra es un solo baño o una cocina, la estancia ya queda creada.
+                    if (estancia.isNotBlank()) {
+                        dao.insertarEstancia(EstanciaEntity(obraId = id, nombre = estancia))
+                    }
+                    // Con la estancia ya hecha se va directo a decir qué cambia, sin pasos.
+                    pantalla = if (estancia.isBlank()) Pantalla.Obra(id) else Pantalla.ObraFinal(id)
                 }
             }
         )
@@ -176,8 +189,15 @@ fun AppObra() {
             obraId = actual.id,
             dao = dao,
             alVolver = { pantalla = Pantalla.Obra(actual.id) },
+            alPropuestas = { pantalla = Pantalla.Propuestas(actual.id) },
             alPlano = { estanciaId -> pantalla = Pantalla.Plano(actual.id, estanciaId) },
             alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) }
+        )
+
+        is Pantalla.Propuestas -> PantallaPropuestas(
+            obraId = actual.id,
+            dao = dao,
+            alVolver = { pantalla = Pantalla.ObraFinal(actual.id) }
         )
 
         is Pantalla.Retoque -> PantallaRetoque(
@@ -189,7 +209,22 @@ fun AppObra() {
 
         is Pantalla.Medir -> PantallaMedir(
             alVolver = { pantalla = Pantalla.Obra(actual.id) },
-            alEscanear = { pantalla = Pantalla.Escanear(actual.id) }
+            alEscanear = { pantalla = Pantalla.Escanear(actual.id) },
+            alFoto = { pantalla = Pantalla.MedirFoto(actual.id) }
+        )
+
+        is Pantalla.MedirFoto -> PantallaMedirFoto(
+            alVolver = { pantalla = Pantalla.Medir(actual.id) },
+            alAplicar = { superficie ->
+                alcance.launch {
+                    dao.obtenerObra(actual.id)?.let { obra ->
+                        dao.actualizarObra(
+                            obra.copy(metodo = "foto", superficieCerrada = superficie)
+                        )
+                    }
+                    pantalla = Pantalla.Obra(actual.id)
+                }
+            }
         )
 
         is Pantalla.Escanear -> PantallaEscanear(
@@ -219,9 +254,11 @@ fun PantallaInicio(
     alActualizar: () -> Unit
 ) {
     val obras by dao.observarObras().collectAsStateWithLifecycle(initialValue = emptyList())
+    var busqueda by remember { mutableStateOf("") }
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
     var avisoCopia by remember { mutableStateOf<String?>(null) }
+    var borrando by remember { mutableStateOf<ObraEntity?>(null) }
     val importar = rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) { uri ->
         if (uri != null) alcance.launch {
             try {
@@ -254,7 +291,7 @@ fun PantallaInicio(
                 containerColor = Tinta.obra,
                 contentColor = Tinta.tinta,
                 icon = { Icon(Icons.Filled.Add, contentDescription = null) },
-                text = { Text("Nueva obra") }
+                text = { Text("Empezar obra nueva") }
             )
         }
     ) { relleno ->
@@ -277,12 +314,27 @@ fun PantallaInicio(
                 )
                 Spacer(Modifier.height(12.dp))
                 Text(
-                    "Pulsa «Nueva obra», escribe las medidas de la estancia y tendrás la superficie y los materiales calculados. Todo se queda en el móvil.",
+                    "Pulsa «Empezar obra nueva». Solo hace falta un nombre; las medidas se ponen después, a mano o con la cámara. Todo se queda en el móvil.",
                     style = MaterialTheme.typography.bodyLarge,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
         } else {
+            OutlinedTextField(
+                value = busqueda,
+                onValueChange = { busqueda = it },
+                label = { Text("Buscar obra o cliente") },
+                singleLine = true,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 20.dp, vertical = 4.dp)
+            )
+            Text(
+                "Toca una obra para seguir donde lo dejaste.",
+                modifier = Modifier.padding(horizontal = 20.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
             LazyColumn(
                 modifier = Modifier
                     .fillMaxSize(),
@@ -291,12 +343,65 @@ fun PantallaInicio(
                 ),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
-                items(obras, key = { it.id }) { obra ->
-                    FichaObra(obra = obra, alPulsar = { alAbrir(obra.id) })
+                val consulta = busqueda.trim().lowercase()
+                val filtradas = obras.filter { obra ->
+                    consulta.isEmpty() ||
+                        obra.nombre.lowercase().contains(consulta) ||
+                        obra.direccion.lowercase().contains(consulta) ||
+                        obra.cliente.lowercase().contains(consulta)
+                }
+                if (filtradas.isEmpty()) {
+                    item {
+                        Text(
+                            "No hay ninguna obra que coincida con «$busqueda».",
+                            style = MaterialTheme.typography.bodyLarge,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+                items(filtradas, key = { it.id }) { obra ->
+                    FichaObra(
+                        obra = obra,
+                        alPulsar = { alAbrir(obra.id) },
+                        alBorrar = { borrando = obra }
+                    )
                 }
             }
         }
         }
+    }
+
+    borrando?.let { obra ->
+        AlertDialog(
+            onDismissRequest = { borrando = null },
+            title = { Text("Borrar «${obra.nombre}»") },
+            text = {
+                Text(
+                    "Se borran también sus estancias, sus trabajos y sus fotos. Esto no se puede " +
+                        "deshacer: si dudas, guarda antes una copia."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        borrando = null
+                        alcance.launch {
+                            withContext(Dispatchers.IO) {
+                                val estancias = dao.estancias(obra.id)
+                                dao.borrarObra(obra)
+                                estancias.forEach { estancia ->
+                                    borrarFoto(contexto.filesDir, estancia.foto)
+                                    borrarFoto(contexto.filesDir, estancia.fotoTerminada)
+                                }
+                            }
+                        }
+                    }
+                ) { Text("Borrar", color = Tinta.rojo) }
+            },
+            dismissButton = {
+                TextButton(onClick = { borrando = null }) { Text("Cancelar") }
+            }
+        )
     }
 }
 
@@ -327,7 +432,7 @@ private fun BannerVersion(alPulsar: () -> Unit) {
 }
 
 @Composable
-private fun FichaObra(obra: ObraEntity, alPulsar: () -> Unit) {
+private fun FichaObra(obra: ObraEntity, alPulsar: () -> Unit, alBorrar: () -> Unit) {
     Surface(
         modifier = Modifier
             .fillMaxWidth()
@@ -335,8 +440,21 @@ private fun FichaObra(obra: ObraEntity, alPulsar: () -> Unit) {
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = MaterialTheme.shapes.small
     ) {
-        Column(Modifier.padding(20.dp)) {
-            Text(obra.nombre, style = MaterialTheme.typography.titleMedium)
+        Column(Modifier.padding(start = 20.dp, top = 10.dp, end = 8.dp, bottom = 20.dp)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    obra.nombre,
+                    style = MaterialTheme.typography.titleMedium,
+                    modifier = Modifier.weight(1f)
+                )
+                IconButton(onClick = alBorrar) {
+                    Icon(
+                        Icons.Filled.Delete,
+                        contentDescription = "Borrar la obra",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
             if (obra.direccion.isNotBlank()) {
                 Spacer(Modifier.height(2.dp))
                 Text(
@@ -374,10 +492,13 @@ private fun FichaObra(obra: ObraEntity, alPulsar: () -> Unit) {
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaNuevaObra(alVolver: () -> Unit, alCrear: (String, String, String) -> Unit) {
+fun PantallaNuevaObra(alVolver: () -> Unit, alCrear: (String, String, String, String) -> Unit) {
     var nombre by remember { mutableStateOf("") }
     var direccion by remember { mutableStateOf("") }
     var cliente by remember { mutableStateOf("") }
+    // Una obra puede ser solo un baño: se crea la estancia de una vez y no hay que añadirla.
+    var estancia by remember { mutableStateOf("") }
+    val estancias = listOf("Baño", "Cocina", "Salón", "Habitación")
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
@@ -404,24 +525,47 @@ fun PantallaNuevaObra(alVolver: () -> Unit, alCrear: (String, String, String) ->
         ) {
             Spacer(Modifier.height(8.dp))
             Text(
-                "¿Dónde es el trabajo?",
+                "¿Qué obra es?",
                 style = MaterialTheme.typography.headlineMedium
+            )
+            Spacer(Modifier.height(10.dp))
+            Text(
+                "Solo hace falta un nombre. Si es una sola estancia —un baño, una cocina— " +
+                    "elígela y ya queda creada. Si es un piso entero, sus estancias se añaden después.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(Modifier.height(20.dp))
 
             OutlinedTextField(
                 value = nombre,
                 onValueChange = { nombre = it },
-                label = { Text("Nombre de la obra") },
-                placeholder = { Text("Piso calle Mayor") },
+                label = { Text("Nombre") },
+                placeholder = { Text("Reforma del baño") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(16.dp))
+            Text("Es una sola estancia (opcional)", style = MaterialTheme.typography.bodyMedium)
+            Spacer(Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.horizontalScroll(rememberScrollState()),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                estancias.forEach { tipo ->
+                    FilterChip(
+                        selected = estancia == tipo,
+                        onClick = { estancia = if (estancia == tipo) "" else tipo },
+                        label = { Text(tipo) }
+                    )
+                }
+            }
+
+            Spacer(Modifier.height(20.dp))
             OutlinedTextField(
                 value = direccion,
                 onValueChange = { direccion = it },
-                label = { Text("Dirección") },
+                label = { Text("Dirección (opcional)") },
                 singleLine = true,
                 modifier = Modifier.fillMaxWidth()
             )
@@ -436,7 +580,7 @@ fun PantallaNuevaObra(alVolver: () -> Unit, alCrear: (String, String, String) ->
 
             Spacer(Modifier.height(28.dp))
             Button(
-                onClick = { alCrear(nombre.trim(), direccion.trim(), cliente.trim()) },
+                onClick = { alCrear(nombre.trim(), direccion.trim(), cliente.trim(), estancia) },
                 enabled = nombre.isNotBlank(),
                 modifier = Modifier
                     .fillMaxWidth()
@@ -446,7 +590,7 @@ fun PantallaNuevaObra(alVolver: () -> Unit, alCrear: (String, String, String) ->
             }
             Spacer(Modifier.height(12.dp))
             Text(
-                "Después podrás medir la estancia a mano, con foto o dando una vuelta con la cámara.",
+                "Después podrás medir a mano, con foto o con la cámara, cuando te venga bien.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -552,9 +696,10 @@ private fun ContenidoObra(
 
     var muros by remember { mutableStateOf<List<MuroEntity>>(emptyList()) }
     var huecos by remember { mutableStateOf<List<HuecoEntity>>(emptyList()) }
+    var estancias by remember { mutableStateOf<List<EstanciaEntity>>(emptyList()) }
 
     LaunchedEffect(obra.id) {
-        val estancias = dao.estancias(obra.id)
+        estancias = dao.estancias(obra.id)
         muros = estancias.flatMap { dao.muros(it.id) }
         huecos = estancias.flatMap { dao.huecosDeEstancia(it.id) }
     }
@@ -596,7 +741,45 @@ private fun ContenidoObra(
     ) {
         Spacer(Modifier.height(8.dp))
 
-        Seccion("Medidas de la estancia")
+        Seccion("Qué quieres hacer")
+        Text(
+            "Cada cosa se puede hacer cuando quieras, en el orden que te venga bien. " +
+                "Una obra puede ser solo un baño.",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
+        TarjetaPaso("Medir", "Largo, ancho y alto, a mano o con la cámara.", alMedir)
+        Spacer(Modifier.height(8.dp))
+        TarjetaPaso(
+            "Decir qué cambia",
+            "Añade estancias y trabajos, y aprueba lo que se hace.",
+            alProyecto
+        )
+        Spacer(Modifier.height(8.dp))
+        TarjetaPaso("Ver el presupuesto", "Lo que se cobra, con IVA y PDF.", alPresupuesto)
+        Spacer(Modifier.height(8.dp))
+        TarjetaPaso("Enseñar cómo queda", "La foto terminada de cada estancia.", alVisual)
+        Spacer(Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = alPlano,
+            modifier = Modifier.fillMaxWidth().height(56.dp)
+        ) {
+            Text("Abrir el plano")
+        }
+
+        Spacer(Modifier.height(24.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outline)
+        Spacer(Modifier.height(20.dp))
+
+        Seccion("Medidas generales")
+        Text(
+            "Sirven para la ficha en PDF y para cuando la obra es una sola habitación. Si tiene " +
+                "varias, mide cada una en «Decir qué cambia».",
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(Modifier.height(12.dp))
         CampoNumero(
             etiqueta = "Largo",
             valor = largo,
@@ -625,11 +808,18 @@ private fun ContenidoObra(
         )
 
         Spacer(Modifier.height(20.dp))
-        CifraGrande(
-            valor = superficie,
-            unidad = "m²",
-            etiqueta = if (muros.isNotEmpty()) "Superficie del contorno" else "Superficie del suelo"
-        )
+        if (superficie > 0.01) {
+            CifraGrande(
+                valor = superficie,
+                unidad = "m²",
+                etiqueta = if (muros.isNotEmpty()) "Superficie del contorno" else "Superficie del suelo"
+            )
+        } else {
+            Text(
+                "Todavía no hay medidas. Escribe el largo y el ancho, o mide con la cámara.",
+                style = MaterialTheme.typography.titleMedium
+            )
+        }
 
         if (!Medidas.plausible(l, a)) {
             Spacer(Modifier.height(12.dp))
@@ -666,88 +856,44 @@ private fun ContenidoObra(
         Spacer(Modifier.height(20.dp))
 
         Seccion("Lo que necesitas comprar")
-        FilaMaterial(
-            "Pintura",
-            "Necesitas ${Geometria.formatear(litros)} L. Compra $botes15 bote(s) de 15 L."
-        )
-        FilaMaterial(
-            "Suelo o azulejo",
-            "$cajas cajas de 1,44 m², con la merma ya contada."
-        )
-        if (obra.factorCalibracion != 1.0) {
+        if (superficie > 0.01) {
             FilaMaterial(
-                "Corrección de la cámara",
-                "Se aplica ×${Geometria.formatear(obra.factorCalibracion, 3)} a lo medido con el móvil."
+                "Pintura",
+                "Necesitas ${Geometria.formatear(litros)} L. Compra $botes15 bote(s) de 15 L."
+            )
+            FilaMaterial(
+                "Suelo o azulejo",
+                "$cajas cajas de 1,44 m², con la merma ya contada."
+            )
+            if (obra.factorCalibracion != 1.0) {
+                FilaMaterial(
+                    "Corrección de la cámara",
+                    "Se aplica ×${Geometria.formatear(obra.factorCalibracion, 3)} a lo medido con el móvil."
+                )
+            }
+
+            Spacer(Modifier.height(8.dp))
+            Text(
+                "Son cuentas orientativas con rendimientos de manual. Ajústalas con el material que compres.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else {
+            Text(
+                "Con las medidas puestas, aquí salen los botes de pintura y las cajas de suelo que " +
+                    "hacen falta, con la merma ya contada.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
 
-        Spacer(Modifier.height(8.dp))
-        Text(
-            "Son cuentas orientativas con rendimientos de manual. Ajústalas con el material que compres.",
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
         Spacer(Modifier.height(28.dp))
-        Button(
-            onClick = alProyecto,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Tinta.tinta,
-                contentColor = Tinta.papel
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            Text("Proyecto: estancias y cambios", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        Button(
-            onClick = alVisual,
-            colors = ButtonDefaults.buttonColors(
-                containerColor = Tinta.verde,
-                contentColor = Tinta.papel
-            ),
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(64.dp)
-        ) {
-            Text("Enseñar al cliente", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = alPlano,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Abrir el plano", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        OutlinedButton(
-            onClick = alMedir,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Medir de otra forma")
-        }
-        Spacer(Modifier.height(10.dp))
-        Button(
-            onClick = alPresupuesto,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(60.dp)
-        ) {
-            Text("Presupuesto", style = MaterialTheme.typography.labelLarge)
-        }
-        Spacer(Modifier.height(10.dp))
         OutlinedButton(
             onClick = {
                 alcance.launch {
                     // El PDF se escribe en disco: fuera del hilo de la pantalla.
                     val archivo = withContext(Dispatchers.IO) {
-                        PdfObra.generar(contexto, obra, muros, huecos)
+                        PdfObra.generar(contexto, obra, muros, huecos, estancias)
                     }
                     Exportador.compartir(contexto, archivo, tipo = "application/pdf")
                 }
@@ -760,25 +906,18 @@ private fun ContenidoObra(
         }
         Spacer(Modifier.height(10.dp))
         OutlinedButton(
-            onClick = {
-                alcance.launch {
-                    val archivo = Exportador.exportar(contexto, obra, dao)
-                    Exportador.compartir(contexto, archivo)
-                }
-            },
+            onClick = { guardarCopia.launch("obra-${obra.id}.zip") },
             modifier = Modifier
                 .fillMaxWidth()
                 .height(56.dp)
         ) {
-            Text("Exportar datos (.obra, sin fotos)")
-        }
-        OutlinedButton(onClick = { guardarCopia.launch("obra-${obra.id}.zip") }, modifier = Modifier.fillMaxWidth()) {
-            Text("Guardar copia con fotos")
+            Text("Guardar copia de la obra con fotos")
         }
         avisoCopia?.let { Text(it, style = MaterialTheme.typography.bodyMedium) }
 
         Text(
-            "La exportación .obra no incluye fotos y no se puede restaurar. Usa la copia ZIP con fotos para guardar la obra; conserva también los originales hasta comprobarla en tu dispositivo.",
+            "La copia es un archivo que puedes guardar o enviarte. Se restaura desde la pantalla " +
+                "de inicio, como una obra nueva.",
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -798,7 +937,7 @@ private fun ContenidoObra(
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun PantallaMedir(alVolver: () -> Unit, alEscanear: () -> Unit) {
+fun PantallaMedir(alVolver: () -> Unit, alEscanear: () -> Unit, alFoto: () -> Unit) {
     val contexto = LocalContext.current
     var arDisponible by remember { mutableStateOf<Boolean?>(null) }
 
@@ -867,16 +1006,19 @@ fun PantallaMedir(alVolver: () -> Unit, alEscanear: () -> Unit) {
             Spacer(Modifier.height(12.dp))
             OpcionMedida(
                 titulo = "Foto y una medida conocida",
-                detalle = "Foto del suelo, marcar las cuatro esquinas y decir cuánto mide la puerta.",
-                disponible = false,
-                nota = "Llega en la siguiente entrega (H1)"
+                detalle = "Foto del suelo, marcar las esquinas y decir cuánto mide una puerta o una baldosa.",
+                disponible = true,
+                nota = "Funciona sin conexión y la foto no sale del móvil",
+                alPulsar = alFoto
             )
             Spacer(Modifier.height(12.dp))
             OpcionMedida(
                 titulo = "Escribir las medidas",
-                detalle = "Largo, ancho y alto. Ya funciona: vuelve atrás y rellena las casillas.",
+                detalle = "Largo, ancho y alto a mano. Es la forma más rápida y no falla nunca.",
                 disponible = true,
-                nota = null
+                nota = null,
+                alPulsar = alVolver,
+                textoBoton = "Volver a las casillas"
             )
         }
     }
@@ -888,7 +1030,8 @@ private fun OpcionMedida(
     detalle: String,
     disponible: Boolean,
     nota: String?,
-    alPulsar: (() -> Unit)? = null
+    alPulsar: (() -> Unit)? = null,
+    textoBoton: String = "Empezar a medir"
 ) {
     Surface(
         modifier = Modifier.fillMaxWidth(),
@@ -924,7 +1067,7 @@ private fun OpcionMedida(
                     modifier = Modifier
                         .fillMaxWidth()
                         .height(56.dp)
-                ) { Text("Empezar a medir") }
+                ) { Text(textoBoton) }
             }
         }
     }
@@ -1214,3 +1357,28 @@ private fun LinkTexto(texto: String) {
 
 private fun cifra(valor: Double): String =
     if (valor <= 0.0) "" else Geometria.formatear(valor, decimales = 2).trimEnd('0').trimEnd(',')
+
+/** Una acción de la obra: se toca la tarjeta entera, no hay que apuntar a nada pequeño. */
+@Composable
+private fun TarjetaPaso(titulo: String, detalle: String, alPulsar: () -> Unit) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = alPulsar),
+        color = MaterialTheme.colorScheme.surfaceVariant,
+        shape = MaterialTheme.shapes.small
+    ) {
+        Column(Modifier.padding(16.dp)) {
+            Text(
+                titulo,
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                detalle,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}

@@ -30,6 +30,15 @@ class CambiosObraTest {
     )
 
     @Test
+    fun `una puerta sin cantidad se cobra como partida entera`() {
+        // Antes solo la unidad GLOBAL se trataba así: la puerta entraba con cantidad 0 y 0 €.
+        val puerta = cambio(TipoCambio.PUERTA_INTERIOR, cantidad = 0.0, estado = EstadoCambio.APROBADO)
+
+        assertEquals(TipoCambio.PUERTA_INTERIOR.precio, puerta.importe, 1e-9)
+        assertTrue(puerta.detalle.contains("partida entera"))
+    }
+
+    @Test
     fun `el catalogo cubre todos los oficios de una reforma`() {
         assertTrue(TipoCambio.entries.size >= 40)
 
@@ -55,8 +64,9 @@ class CambiosObraTest {
         val suelo = cambio(TipoCambio.SUELO_LAMINADO).conCantidadSugerida(18.0)
         assertEquals(18.0, suelo.cantidad, 0.0001)
 
+        // 16 m² son 4 × 4: el rodapié recorre los 16 m de las cuatro paredes.
         val rodapie = cambio(TipoCambio.RODAPIE).conCantidadSugerida(16.0)
-        assertEquals(8.0, rodapie.cantidad, 0.0001)
+        assertEquals(16.0, rodapie.cantidad, 0.0001)
 
         val puerta = cambio(TipoCambio.PUERTA_INTERIOR).conCantidadSugerida(18.0)
         assertEquals(0.0, puerta.cantidad, 0.0001) // no mide

@@ -22,11 +22,13 @@ object ProyectoRepositorio {
 
         return Proyecto(
             nombre = obra.nombre,
-            estancias = estancias.map { estancia ->
+            estancias = estancias.mapIndexed { indice, estancia ->
                 val superficie = when {
                     estancia.superficie > 0.0 -> estancia.superficie
-                    // Si la obra tiene una sola estancia, sus metros son los de la obra.
-                    estancias.size == 1 -> obra.superficieEfectiva
+                    // Los metros generales de la obra son los de la primera estancia. Antes solo
+                    // se heredaban con una sola estancia, así que al añadir un segundo cuarto
+                    // las medidas ya tomadas desaparecían del proyecto.
+                    indice == 0 -> obra.superficieEfectiva
                     else -> 0.0
                 }
                 EstanciaProyecto(
@@ -35,6 +37,7 @@ object ProyectoRepositorio {
                     superficie = superficie,
                     altura = estancia.altura,
                     foto = estancia.foto,
+                    fotoTerminada = estancia.fotoTerminada,
                     cambios = porEstancia[estancia.id].orEmpty().mapNotNull { it.aDominio() }
                 )
             }

@@ -66,6 +66,14 @@ private val tipografia = Typography(
         fontSize = 18.sp,
         lineHeight = 24.sp
     ),
+    // Los títulos de bloque tienen que leerse como títulos: por defecto Material los deja en
+    // 14 sp, más pequeños que el texto normal.
+    titleSmall = TextStyle(
+        fontFamily = FontFamily.SansSerif,
+        fontWeight = FontWeight.SemiBold,
+        fontSize = 17.sp,
+        lineHeight = 22.sp
+    ),
     bodyLarge = TextStyle(
         fontFamily = FontFamily.SansSerif,
         fontSize = 18.sp,

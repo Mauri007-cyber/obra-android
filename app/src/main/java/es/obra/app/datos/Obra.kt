@@ -39,7 +39,13 @@ data class ObraEntity(
     /** Superficie del contorno cerrado dibujado. 0 = usar largo × ancho. */
     val superficieCerrada: Double = 0.0,
     /** Precios propios de esta obra, separados por «;». Vacío = los de por defecto. */
-    val tarifas: String = ""
+    val tarifas: String = "",
+    /** Cuántos días vale el presupuesto que se envía. */
+    val validezDias: Int = 30,
+    /** Lo que se le dice al cliente al pie del presupuesto. */
+    val notasPresupuesto: String = "",
+    /** borrador | enviado | aceptado */
+    val estadoPresupuesto: String = "borrador"
 ) {
     val superficie: Double get() = largo * ancho
 
@@ -69,7 +75,9 @@ data class EstanciaEntity(
     /** Superficie propia de esta habitación. 0 = usar la de la obra. */
     val superficie: Double = 0.0,
     /** Foto real de la estancia, para enseñar el antes y el después. */
-    val foto: String = ""
+    val foto: String = "",
+    /** Última imagen terminada guardada, relativa a filesDir. Vacía = todavía no hay. */
+    val fotoTerminada: String = ""
 )
 
 @Entity(
@@ -173,6 +181,12 @@ interface ObraDao {
     @Query("UPDATE obras SET tarifas = :tarifas WHERE id = :id")
     suspend fun guardarTarifas(id: Long, tarifas: String)
 
+    @Query(
+        "UPDATE obras SET validezDias = :dias, notasPresupuesto = :notas, " +
+            "estadoPresupuesto = :estado WHERE id = :id"
+    )
+    suspend fun guardarDatosPresupuesto(id: Long, dias: Int, notas: String, estado: String)
+
     @Query("UPDATE obras SET largo = :largo, ancho = :ancho, altura = :altura, superficieCerrada = CASE WHEN largo != :largo OR ancho != :ancho THEN 0 ELSE superficieCerrada END, metodo = CASE WHEN largo != :largo OR ancho != :ancho THEN 'manual' ELSE metodo END WHERE id = :id")
     suspend fun guardarMedidasManuales(id: Long, largo: Double, ancho: Double, altura: Double)
 
@@ -225,15 +239,8 @@ interface ObraDao {
     @Insert
     suspend fun insertarEstancia(estancia: EstanciaEntity): Long
 
-    @Query("SELECT * FROM cambios WHERE estanciaId = :estanciaId ORDER BY creado ASC")
-    fun observarCambiosDeEstancia(estanciaId: Long): Flow<List<CambioEntity>>
-
-    @Query(
-        "SELECT c.* FROM cambios c " +
-            "JOIN estancias e ON e.id = c.estanciaId " +
-            "WHERE e.obraId = :obraId ORDER BY c.creado ASC"
-    )
-    fun observarCambios(obraId: Long): Flow<List<CambioEntity>>
+    @Query("UPDATE estancias SET fotoTerminada = :ruta WHERE id = :estanciaId")
+    suspend fun fijarFotoTerminada(estanciaId: Long, ruta: String)
 
     @Query(
         "SELECT c.* FROM cambios c " +
@@ -245,14 +252,15 @@ interface ObraDao {
     @Insert
     suspend fun insertarCambio(cambio: CambioEntity): Long
 
-    @Insert
-    suspend fun insertarCambios(cambios: List<CambioEntity>)
-
     @Update
     suspend fun actualizarCambio(cambio: CambioEntity)
 
     @Query("UPDATE cambios SET estado = :estado WHERE id = :id")
     suspend fun cambiarEstado(id: Long, estado: String)
+
+    /** Cantidad y precio desde el propio presupuesto, sin pasar por el catálogo. */
+    @Query("UPDATE cambios SET cantidad = :cantidad, precioPropio = :precio WHERE id = :id")
+    suspend fun actualizarImporte(id: Long, cantidad: Double, precio: Double)
 
     @Query("DELETE FROM cambios WHERE id = :id")
     suspend fun borrarCambio(id: Long)
@@ -280,9 +288,6 @@ interface ObraDao {
 
     @Query("DELETE FROM muros WHERE id = :id")
     suspend fun borrarMuro(id: Long)
-
-    @Query("DELETE FROM muros WHERE estanciaId = :estanciaId")
-    suspend fun borrarMurosDeEstancia(estanciaId: Long)
 }
 
 private val MIGRACION_1_2 = object : Migration(1, 2) {
@@ -343,6 +348,26 @@ private val MIGRACION_4_5 = object : Migration(4, 5) {
     }
 }
 
+/** La imagen terminada se guarda en la estancia para que no se pierda al salir de la pantalla. */
+internal val MIGRACION_5_6 = object : Migration(5, 6) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL(
+            "ALTER TABLE estancias ADD COLUMN fotoTerminada TEXT NOT NULL DEFAULT ''"
+        )
+    }
+}
+
+/** El presupuesto gana estado, validez y notas para el cliente. */
+internal val MIGRACION_6_7 = object : Migration(6, 7) {
+    override fun migrate(db: SupportSQLiteDatabase) {
+        db.execSQL("ALTER TABLE obras ADD COLUMN validezDias INTEGER NOT NULL DEFAULT 30")
+        db.execSQL("ALTER TABLE obras ADD COLUMN notasPresupuesto TEXT NOT NULL DEFAULT ''")
+        db.execSQL(
+            "ALTER TABLE obras ADD COLUMN estadoPresupuesto TEXT NOT NULL DEFAULT 'borrador'"
+        )
+    }
+}
+
 @Database(
     entities = [
         ObraEntity::class,
@@ -351,7 +376,7 @@ private val MIGRACION_4_5 = object : Migration(4, 5) {
         HuecoEntity::class,
         CambioEntity::class
     ],
-    version = 5,
+    version = 7,
     exportSchema = false
 )
 abstract class ObraDb : RoomDatabase() {
@@ -372,6 +397,9 @@ abstract class ObraDb : RoomDatabase() {
             context.applicationContext,
             ObraDb::class.java,
             "obra.db"
-        ).addMigrations(MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5).build()
+        ).addMigrations(
+            MIGRACION_1_2, MIGRACION_2_3, MIGRACION_3_4, MIGRACION_4_5, MIGRACION_5_6,
+            MIGRACION_6_7
+        ).build()
     }
 }

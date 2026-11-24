@@ -1,7 +1,13 @@
 package es.obra.app.ui
 
+import android.Manifest
+import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -23,10 +29,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AutoAwesome
 import androidx.compose.material.icons.filled.Share
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -56,12 +64,18 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import es.obra.app.datos.Exportador
+import es.obra.app.datos.Galeria
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ProyectoRepositorio
 import es.obra.app.datos.rutaFoto
 import es.obra.app.dominio.Cambio
 import es.obra.app.dominio.EstanciaProyecto
 import es.obra.app.dominio.FraseACambios
+import es.obra.app.dominio.PromptReforma
+import es.obra.app.ia.ClienteCloudflare
+import es.obra.app.ia.CuotaImagen
+import es.obra.app.ia.PuenteGemini
+import es.obra.app.ia.ResultadoImagen
 import es.obra.app.render.RetoqueFoto
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -69,14 +83,16 @@ import kotlinx.coroutines.withContext
 import java.io.File
 
 /**
- * Enseñar la foto de la estancia con los materiales aprobados, sin gastar nada.
+ * Enseñar la estancia terminada, gratis y sin cuenta.
  *
- * Dos formas de decir lo que se quiere, las dos en el propio móvil: escribir la frase normal
- * («suelo de tarima clara y paredes blancas») o elegir los cambios en el proyecto. La frase se
- * entiende con reglas del catálogo, no con un servicio; el retoque se pinta en el teléfono.
+ * Tres caminos, de más automático a más seguro:
+ *  1. **Generar en la app**: los cambios aprobados se convierten en un prompt y el Worker propio
+ *     devuelve una imagen fotorrealista (cuota diaria gratuita de Cloudflare).
+ *  2. **Abrir en Gemini**: la foto y el prompt van a la app de Gemini, que da la mejor calidad
+ *     gratis; después se trae la imagen con el selector.
+ *  3. **Retoque local**: pinta el material aprobado sobre la foto, sin conexión y sin cuota.
  *
- * Nada sale del móvil: ni la foto, ni la frase, ni una clave. Y no se inventan muebles: se
- * tiñe lo que ya está en la foto con el material que se ha aprobado.
+ * La foto solo sale del móvil en los dos primeros caminos, y se avisa antes la primera vez.
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -88,6 +104,7 @@ fun PantallaRetoque(
 ) {
     val contexto = LocalContext.current
     val alcance = rememberCoroutineScope()
+    val desplazamiento = rememberScrollState()
 
     var estancia by remember { mutableStateOf<EstanciaProyecto?>(null) }
     var foto by remember { mutableStateOf<Bitmap?>(null) }
@@ -98,30 +115,277 @@ fun PantallaRetoque(
     var entendidos by remember { mutableStateOf<List<Cambio>>(emptyList()) }
     var aviso by remember { mutableStateOf("") }
     var trabajando by remember { mutableStateOf(false) }
+    var generando by remember { mutableStateOf(false) }
+    var pedirPermiso by remember { mutableStateOf(false) }
+    var restantes by remember { mutableStateOf(CuotaImagen.restantes(contexto)) }
     var refresco by remember { mutableIntStateOf(0) }
+    var verPrompt by remember { mutableStateOf(false) }
+    var corrigiendo by remember { mutableStateOf(false) }
+    var correccion by remember { mutableStateOf("") }
+    // Las imágenes anteriores, para poder deshacer una corrección que empeora la foto.
+    var historial by remember { mutableStateOf<List<Bitmap>>(emptyList()) }
+
+    val generador = remember { ClienteCloudflare() }
+
+    // En Android 9 o anterior la galería necesita permiso de almacenamiento: se pide al entrar,
+    // no después de gastar una imagen. Si se deniega, la foto se queda en la estancia.
+    val permisoGaleria = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { }
+    LaunchedEffect(Unit) {
+        if (Galeria.necesitaPermiso(contexto)) {
+            permisoGaleria.launch(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        }
+    }
 
     LaunchedEffect(obraId, estanciaId, refresco) {
         val obra = dao.obtenerObra(obraId)
         val proyecto = obra?.let { withContext(Dispatchers.IO) { ProyectoRepositorio.cargar(dao, it) } }
         val cargada = proyecto?.estancia(estanciaId)
         estancia = cargada
-        resultado = null
-        foto = withContext(Dispatchers.IO) {
-            cargada?.foto
+        val (original, terminada) = withContext(Dispatchers.IO) {
+            val original = cargada?.foto
                 ?.takeIf { it.isNotBlank() }
                 ?.let { rutaFoto(contexto.filesDir, it) }
                 ?.let { cargarFoto(it) }
+            // La última imagen terminada se recupera de la estancia: no se pierde al salir.
+            val terminada = cargada?.fotoTerminada
+                ?.takeIf { it.isNotBlank() }
+                ?.let { File(contexto.filesDir, it) }
+                ?.takeIf { it.exists() }
+                ?.let { cargarFoto(it) }
+            original to terminada
         }
+        foto = original
+        resultado = terminada
     }
 
     val aprobados = estancia?.visibles ?: emptyList()
-    val aplicables = aprobados + entendidos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
+    // Sin pulsar «Entender» también vale: la frase se lee al escribir, para que el botón de
+    // generar no dependa de un paso que se puede olvidar.
+    val deLaFrase = remember(frase, estancia?.id, estancia?.superficie) {
+        if (frase.isBlank()) emptyList()
+        else FraseACambios.analizar(
+            frase = frase,
+            superficie = estancia?.superficie ?: 0.0,
+            altura = estancia?.altura ?: 2.5
+        ).cambios
+    }
+    val entendidosEfectivos = if (entendidos.isEmpty()) deLaFrase else entendidos
+    val aplicables = aprobados +
+        entendidosEfectivos.filter { nuevo -> aprobados.none { it.tipo == nuevo.tipo } }
+
+    // Se queda a la vista: si la imagen se genera arriba, hay que llevarla a la pantalla.
+    LaunchedEffect(resultado) {
+        if (resultado != null) desplazamiento.animateScrollTo(0)
+    }
+
+    fun promptDeLaObra(): String = PromptReforma.paraLaPantalla(
+        aprobados = aprobados,
+        entendidos = entendidosEfectivos,
+        frase = frase,
+        estancia = estancia?.nombre.orEmpty()
+    )
+
+    /** Deja la imagen a la vista y la guarda en la estancia para que no se pierda. */
+    fun fijarResultado(mapa: Bitmap) {
+        resultado = mapa
+        verAntes = false
+        alcance.launch {
+            withContext(Dispatchers.IO) {
+                runCatching {
+                    val carpeta = File(contexto.filesDir, "retoques").apply { mkdirs() }
+                    val archivo = File(carpeta, "terminada-$estanciaId.jpg")
+                    archivo.outputStream().use {
+                        mapa.compress(Bitmap.CompressFormat.JPEG, 92, it)
+                    }
+                    dao.fijarFotoTerminada(estanciaId, "retoques/${archivo.name}")
+                }
+            }
+        }
+    }
+
+    fun generarConNube() {
+        val original = foto
+        if (original == null) {
+            aviso = "Primero pon una foto en la estancia."
+            return
+        }
+        if (aplicables.isEmpty()) {
+            aviso = "No hay ningún cambio que enseñar todavía: aprueba trabajos o escribe qué " +
+                "quieres cambiar."
+            return
+        }
+        val prompt = promptDeLaObra()
+        if (prompt.isBlank()) {
+            aviso = "Lo aprobado no se ve en una foto: es albañilería o fontanería, no acabados."
+            return
+        }
+        alcance.launch {
+            generando = true
+            aviso = ""
+            when (val salida = generador.generar(original, prompt, CuotaImagen.dispositivo(contexto))) {
+                is ResultadoImagen.Ok -> {
+                    val mapa = withContext(Dispatchers.IO) {
+                        runCatching {
+                            BitmapFactory.decodeByteArray(salida.imagen, 0, salida.imagen.size)
+                        }.getOrNull()
+                    }
+                    if (mapa == null) {
+                        aviso = "La imagen llegó, pero no se pudo abrir."
+                    } else {
+                        fijarResultado(mapa)
+                        val enGaleria = withContext(Dispatchers.IO) {
+                            Galeria.guardar(contexto, mapa, "obra-$estanciaId")
+                        }
+                        aviso = if (enGaleria) {
+                            "Imagen generada y guardada en la galería. Es una vista previa " +
+                                "orientativa de la reforma."
+                        } else if (Galeria.necesitaPermiso(contexto)) {
+                            "Imagen generada y guardada en la estancia. Para verla también en la " +
+                                "galería, concede el permiso de almacenamiento a la app."
+                        } else {
+                            "Imagen generada y guardada en la estancia. No se pudo copiar a la " +
+                                "galería."
+                        }
+                        // Sin contador en el Worker no hay cifra que enseñar: no se inventa un 0.
+                        salida.restantes?.let { CuotaImagen.fijar(contexto, it) }
+                        restantes = CuotaImagen.restantes(contexto)
+                    }
+                }
+
+                is ResultadoImagen.SinCuota -> {
+                    aviso = salida.mensaje
+                    CuotaImagen.fijar(contexto, 0)
+                    restantes = 0
+                }
+
+                is ResultadoImagen.Fallo -> aviso = salida.mensaje
+            }
+            generando = false
+        }
+    }
+
+    /**
+     * Corregir la imagen ya generada. Se vuelve a partir de la foto original con lo aprobado más
+     * la corrección: encadenar parches sobre la imagen inventada acumulaba errores, movía cosas
+     * que nadie había pedido y cada pasada se alejaba más de la habitación real.
+     */
+    fun corregirConNube() {
+        val original = foto
+        if (original == null) {
+            aviso = "Primero pon una foto en la estancia."
+            return
+        }
+        if (generando) return
+        if (!CuotaImagen.haAceptadoEnvio(contexto)) {
+            aviso = "Para corregir en la app hay que enviar la foto al servicio. Acepta el envío " +
+                "al generar una imagen, o rectifica a mano con el retoque local."
+            return
+        }
+        val instruccion = PromptReforma.paraCorreccion(
+            aprobados = aplicables,
+            correccion = correccion,
+            estancia = estancia?.nombre.orEmpty()
+        )
+        if (instruccion.isBlank()) {
+            aviso = "Escribe qué quieres corregir: una puerta movida, un color, un material…"
+            return
+        }
+        alcance.launch {
+            generando = true
+            aviso = ""
+            when (val salida = generador.generar(original, instruccion, CuotaImagen.dispositivo(contexto))) {
+                is ResultadoImagen.Ok -> {
+                    val mapa = withContext(Dispatchers.IO) {
+                        runCatching {
+                            BitmapFactory.decodeByteArray(salida.imagen, 0, salida.imagen.size)
+                        }.getOrNull()
+                    }
+                    if (mapa == null) {
+                        aviso = "La imagen corregida llegó, pero no se pudo abrir."
+                    } else {
+                        resultado?.let { historial = historial + it }
+                        fijarResultado(mapa)
+                        withContext(Dispatchers.IO) {
+                            Galeria.guardar(contexto, mapa, "obra-$estanciaId-corregida")
+                        }
+                        aviso = "Corregido y guardado en la estancia. Si no te gusta, pulsa «Deshacer»."
+                        // Sin contador en el Worker no hay cifra que enseñar: no se inventa un 0.
+                        salida.restantes?.let { CuotaImagen.fijar(contexto, it) }
+                        restantes = CuotaImagen.restantes(contexto)
+                        correccion = ""
+                    }
+                }
+
+                is ResultadoImagen.SinCuota -> {
+                    aviso = salida.mensaje
+                    CuotaImagen.fijar(contexto, 0)
+                    restantes = 0
+                }
+
+                is ResultadoImagen.Fallo -> aviso = salida.mensaje
+            }
+            generando = false
+        }
+    }
+
+    fun abrirEnGemini() {
+        val original = foto
+        if (original == null) {
+            aviso = "Primero pon una foto en la estancia."
+            return
+        }
+        val prompt = promptDeLaObra().ifBlank {
+            "Reform this room and keep the same layout, camera and furniture."
+        }
+        aviso = if (PuenteGemini.abrir(contexto, original, prompt)) {
+            "Elige Gemini, envía la foto, guarda la imagen y tráela aquí."
+        } else {
+            "Este dispositivo no tiene ninguna app que pueda recibir la foto (en un emulador " +
+                "suele faltar Gemini). He copiado el texto al portapapeles."
+        }
+    }
+
+    val traerDeGemini = rememberLauncherForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri: Uri? ->
+        if (uri == null) return@rememberLauncherForActivityResult
+        alcance.launch {
+            val mapa = withContext(Dispatchers.IO) { cargarUri(contexto, uri) }
+            if (mapa == null) {
+                aviso = "No se pudo leer la imagen elegida."
+            } else {
+                fijarResultado(mapa)
+                val enGaleria = withContext(Dispatchers.IO) {
+                    Galeria.guardar(contexto, mapa, "obra-$estanciaId")
+                }
+                aviso = if (enGaleria) {
+                    "Imagen traída de Gemini y guardada en la galería. Compárala con la original."
+                } else {
+                    "Imagen traída de Gemini y guardada en la estancia. Compárala con la original."
+                }
+            }
+        }
+    }
+
+    // El botón solo se apaga por un motivo concreto: se dice debajo cuál es.
+    val faltaParaGenerar = when {
+        !generador.configurado ->
+            "Falta conectar el servicio de imagen en esta copia de la app. Gemini y el " +
+                "retoque local funcionan igual."
+        foto == null -> "Falta la foto de la estancia: ponla desde el proyecto."
+        aplicables.isEmpty() ->
+            "Faltan cambios: aprueba algún trabajo o escribe qué quieres cambiar; lo que " +
+                "escribas se entiende solo."
+        else -> null
+    }
 
     Scaffold(
         containerColor = MaterialTheme.colorScheme.background,
         topBar = {
             TopAppBar(
-                title = { Text("Retoque de la foto") },
+                title = { Text("La obra terminada") },
                 navigationIcon = {
                     IconButton(onClick = alVolver) {
                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "Atrás")
@@ -137,22 +401,10 @@ fun PantallaRetoque(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(relleno)
-                .verticalScroll(rememberScrollState())
+                .verticalScroll(desplazamiento)
                 .padding(horizontal = 20.dp, vertical = 8.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Surface(
-                color = MaterialTheme.colorScheme.surfaceVariant,
-                shape = RoundedCornerShape(14.dp)
-            ) {
-                Text(
-                    "Gratis, en tu móvil y sin conexión. Se tiñe la foto con los materiales " +
-                        "aprobados; no se inventan muebles ni se sube ninguna foto a internet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    modifier = Modifier.padding(14.dp)
-                )
-            }
-
             val visible = if (verAntes) foto else (resultado ?: foto)
             if (visible == null) {
                 Box(
@@ -172,7 +424,7 @@ fun PantallaRetoque(
             } else {
                 Image(
                     bitmap = visible.asImageBitmap(),
-                    contentDescription = if (verAntes) "Foto original" else "Foto con los materiales",
+                    contentDescription = if (verAntes) "Foto original" else "Propuesta de la reforma",
                     modifier = Modifier
                         .fillMaxWidth()
                         .aspectRatio(visible.width.toFloat() / visible.height.toFloat())
@@ -193,9 +445,166 @@ fun PantallaRetoque(
                             modifier = Modifier.weight(1f)
                         ) { Text("Después") }
                     }
+
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = { corrigiendo = true },
+                            enabled = !generando && !trabajando,
+                            modifier = Modifier.weight(1f)
+                        ) { Text("Corregir algo") }
+                        if (historial.isNotEmpty()) {
+                            OutlinedButton(
+                                onClick = {
+                                    // Se guarda también en la estancia: el «deshacer» tiene que
+                                    // seguir valiendo al salir y volver a entrar.
+                                    fijarResultado(historial.last())
+                                    historial = historial.dropLast(1)
+                                    aviso = "Vuelto a la imagen anterior."
+                                },
+                                enabled = !generando,
+                                modifier = Modifier.weight(1f)
+                            ) { Text("Deshacer") }
+                        }
+                    }
+                    Text(
+                        "Si una puerta, un color o un material han salido mal, corrige solo eso: " +
+                            "se vuelve a partir de tu foto original con lo aprobado.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
 
+            // --- Generar la imagen ------------------------------------------------
+            HorizontalDivider()
+            Text(
+                "Generar la imagen",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold
+            )
+            Text(
+                "Convierte lo aprobado en una foto de la reforma terminada. Es una vista previa " +
+                    "orientativa: no sustituye al presupuesto ni a las medidas.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            Button(
+                onClick = {
+                    if (CuotaImagen.haAceptadoEnvio(contexto)) {
+                        generarConNube()
+                    } else {
+                        pedirPermiso = true
+                    }
+                },
+                enabled = !trabajando && !generando && generador.configurado &&
+                    foto != null && aplicables.isNotEmpty(),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(56.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Tinta.tinta,
+                    contentColor = Tinta.papel
+                )
+            ) {
+                if (generando) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(18.dp),
+                        strokeWidth = 2.dp,
+                        color = Tinta.papel
+                    )
+                    Spacer(Modifier.width(10.dp))
+                    Text("Generando… puede tardar medio minuto")
+                } else {
+                    Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Generar imagen realista · gratis")
+                }
+            }
+
+            if (faltaParaGenerar != null && !generando) {
+                Text(
+                    faltaParaGenerar,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            restantes?.let { quedan ->
+                Text(
+                    if (quedan > 0) "Te quedan $quedan imágenes gratis hoy." else "Hoy ya no quedan imágenes gratis.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
+            OutlinedButton(
+                onClick = { abrirEnGemini() },
+                enabled = !generando && foto != null,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Abrir la foto en Gemini · máxima calidad") }
+
+            OutlinedButton(
+                onClick = {
+                    traerDeGemini.launch(
+                        PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly)
+                    )
+                },
+                enabled = !generando,
+                modifier = Modifier.fillMaxWidth()
+            ) { Text("Ya la tengo: traer la imagen") }
+
+            // Los avisos van justo aquí, pegados a los botones que los provocan: al final de la
+            // lista quedaban fuera de la pantalla y parecía que el botón no hacía nada.
+            if (aviso.isNotBlank()) {
+                Text(
+                    aviso,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+
+            // Que se pueda ver exactamente qué se manda: si algo no sale, se ve el porqué.
+            if (frase.isNotBlank() || aprobados.isNotEmpty()) {
+                TextButton(onClick = { verPrompt = !verPrompt }) {
+                    Text(
+                        if (verPrompt) "Ocultar los cambios que se envían"
+                        else "Ver los cambios que se envían"
+                    )
+                }
+                if (verPrompt) {
+                    Surface(
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Column(Modifier.padding(12.dp)) {
+                            Text(
+                                promptDeLaObra().ifBlank { "Todavía no hay nada que enviar." },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Spacer(Modifier.height(8.dp))
+                            Text(
+                                "El servicio añade además una descripción de tu foto (suelo, " +
+                                    "paredes, techo y dónde están puertas y ventanas) para no " +
+                                    "mover nada de sitio.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+            }
+
+            Text(
+                "Al generar, esta foto se envía al servicio de imagen (Cloudflare). Al abrir " +
+                    "Gemini, la foto y el texto van a Google. No se envía nada más: ni el " +
+                    "cliente, ni las medidas, ni el presupuesto.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
+            // --- Decirlo con palabras y retoque local -----------------------------
+            HorizontalDivider()
             Text(
                 "Dilo con tus palabras",
                 style = MaterialTheme.typography.titleSmall,
@@ -223,17 +632,21 @@ fun PantallaRetoque(
                             aviso = "La estancia todavía no está cargada."
                             return@OutlinedButton
                         }
-                        val cambios = FraseACambios.interpretar(
+                        val analisis = FraseACambios.analizar(
                             frase = frase,
                             superficie = actual.superficie,
                             altura = actual.altura
                         )
-                        entendidos = cambios
-                        aviso = if (cambios.isEmpty()) {
-                            "No he reconocido ningún trabajo en esa frase. Prueba con «suelo de " +
-                                "tarima», «pintar paredes» o «tres enchufes»."
-                        } else {
-                            ""
+                        entendidos = analisis.cambios
+                        aviso = when {
+                            analisis.cambios.isEmpty() ->
+                                "No he reconocido ningún trabajo. Prueba a escribir, por ejemplo, " +
+                                    "«suelo de tarima y paredes blancas» o «tres enchufes»."
+                            analisis.noEntendido.isNotEmpty() ->
+                                "He entendido ${analisis.cambios.size} trabajo(s). No sé qué hacer " +
+                                    "con «${analisis.noEntendido.joinToString("», «")}». Repítelo con " +
+                                    "otras palabras o añádelo a mano en los cambios."
+                            else -> ""
                         }
                     },
                     modifier = Modifier.weight(1f)
@@ -260,8 +673,7 @@ fun PantallaRetoque(
                             val retocada = withContext(Dispatchers.Default) {
                                 RetoqueFoto.aplicar(original, aplicables)
                             }
-                            resultado = retocada
-                            verAntes = false
+                            fijarResultado(retocada)
                             trabajando = false
                             aviso = "Listo. Es lo aprobado pintado sobre tu foto, no una imagen inventada."
                         }
@@ -269,34 +681,34 @@ fun PantallaRetoque(
                     enabled = !trabajando && foto != null && aplicables.isNotEmpty(),
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.buttonColors(
-                        containerColor = Tinta.tinta,
-                        contentColor = Tinta.papel
+                        containerColor = Tinta.obra,
+                        contentColor = Tinta.tinta
                     )
                 ) {
                     if (trabajando) {
                         CircularProgressIndicator(
                             modifier = Modifier.size(16.dp),
                             strokeWidth = 2.dp,
-                            color = Tinta.papel
+                            color = Tinta.tinta
                         )
                     } else {
-                        Text("Aplicar en la foto")
+                        Text("Retoque local")
                     }
                 }
             }
 
-            if (entendidos.isNotEmpty()) {
+            if (entendidosEfectivos.isNotEmpty()) {
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceVariant,
                     shape = RoundedCornerShape(14.dp)
                 ) {
                     Column(Modifier.padding(14.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                         Text(
-                            "He entendido ${entendidos.size} trabajo(s)",
+                            "He entendido ${entendidosEfectivos.size} trabajo(s)",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.SemiBold
                         )
-                        entendidos.forEach { cambio ->
+                        entendidosEfectivos.forEach { cambio ->
                             Row(verticalAlignment = Alignment.CenterVertically) {
                                 Box(
                                     Modifier
@@ -313,7 +725,7 @@ fun PantallaRetoque(
                         TextButton(
                             onClick = {
                                 alcance.launch {
-                                    entendidos.forEach { cambio ->
+                                    entendidosEfectivos.forEach { cambio ->
                                         ProyectoRepositorio.guardar(dao, estanciaId, cambio)
                                     }
                                     entendidos = emptyList()
@@ -347,22 +759,14 @@ fun PantallaRetoque(
                 }
             }
 
-            if (aviso.isNotBlank()) {
-                Text(
-                    aviso,
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-
             if (resultado != null) {
                 HorizontalDivider()
                 Button(
                     onClick = {
-                        val retocada = resultado ?: return@Button
+                        val terminada = resultado ?: return@Button
                         alcance.launch {
                             val archivo = withContext(Dispatchers.IO) {
-                                RetoqueFoto.guardar(contexto, retocada)
+                                RetoqueFoto.guardar(contexto, terminada)
                             }
                             val compartido = Exportador.compartir(contexto, archivo, "image/png")
                             if (!compartido) aviso = "No se ha podido abrir el menú de compartir."
@@ -378,6 +782,85 @@ fun PantallaRetoque(
 
             Spacer(Modifier.height(24.dp))
         }
+    }
+
+    if (corrigiendo) {
+        AlertDialog(
+            onDismissRequest = { corrigiendo = false },
+            title = { Text("Corregir la imagen") },
+            text = {
+                Column {
+                    Text(
+                        "Di solo lo que está mal. Se vuelve a generar desde tu foto original con " +
+                            "lo aprobado: así no se van acumulando errores en la imagen.",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    OutlinedTextField(
+                        value = correccion,
+                        onValueChange = { correccion = it.take(300) },
+                        label = { Text("¿Qué quieres cambiar?") },
+                        placeholder = { Text("La puerta está a la derecha; el suelo es demasiado claro") },
+                        minLines = 3,
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    Spacer(Modifier.height(10.dp))
+                    listOf(
+                        listOf("mover la puerta", "suelo más oscuro"),
+                        listOf("paredes más blancas", "quitar la isla")
+                    ).forEach { fila ->
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            fila.forEach { idea ->
+                                FilterChip(
+                                    selected = correccion == idea,
+                                    onClick = { correccion = idea },
+                                    label = { Text(idea) }
+                                )
+                            }
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        corrigiendo = false
+                        corregirConNube()
+                    },
+                    enabled = correccion.isNotBlank()
+                ) { Text("Corregir") }
+            },
+            dismissButton = {
+                TextButton(onClick = { corrigiendo = false }) { Text("Cancelar") }
+            }
+        )
+    }
+
+    if (pedirPermiso) {
+        AlertDialog(
+            onDismissRequest = { pedirPermiso = false },
+            title = { Text("La foto sale del móvil") },
+            text = {
+                Text(
+                    "Para generar la imagen, esta foto se envía al servicio de imagen (Cloudflare) " +
+                        "y vuelve. No se envía nada más: ni el nombre del cliente, ni las medidas, " +
+                        "ni el presupuesto. Si prefieres no enviarla, usa el retoque local o abre " +
+                        "la foto en Gemini tú mismo."
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        CuotaImagen.aceptarEnvio(contexto)
+                        pedirPermiso = false
+                        generarConNube()
+                    }
+                ) { Text("Enviar y generar") }
+            },
+            dismissButton = {
+                TextButton(onClick = { pedirPermiso = false }) { Text("Ahora no") }
+            }
+        )
     }
 }
 
@@ -395,3 +878,22 @@ private fun cargarFoto(archivo: File, ladoMax: Int = 2048): Bitmap? {
     val opciones = BitmapFactory.Options().apply { inSampleSize = muestra }
     return BitmapFactory.decodeFile(archivo.path, opciones)
 }
+
+/** Lee una imagen elegida en el selector de fotos, sin cargarla entera en memoria. */
+private fun cargarUri(contexto: Context, uri: Uri, ladoMax: Int = 2048): Bitmap? = runCatching {
+    contexto.contentResolver.openInputStream(uri)?.use { entrada ->
+        val mapa = BitmapFactory.decodeStream(entrada) ?: return@use null
+        val lado = maxOf(mapa.width, mapa.height)
+        if (lado <= ladoMax) {
+            mapa
+        } else {
+            val factor = ladoMax.toFloat() / lado
+            Bitmap.createScaledBitmap(
+                mapa,
+                (mapa.width * factor).toInt().coerceAtLeast(1),
+                (mapa.height * factor).toInt().coerceAtLeast(1),
+                true
+            )
+        }
+    }
+}.getOrNull()

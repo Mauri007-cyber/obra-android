@@ -92,4 +92,25 @@ object Poligono {
         muro.x2 - muro.x1,
         muro.y2 - muro.y1
     )
+
+    /**
+     * Coloca las estancias una al lado de otra. El plano de cada habitación empieza en su propia
+     * esquina, así que sin esto dos estancias se dibujan una encima de otra y el cliente ve un
+     * plano imposible. Para una sola estancia solo la lleva al origen.
+     */
+    fun enFila(muros: List<MuroEntity>, separacion: Double = 1.0): List<MuroEntity> {
+        if (muros.isEmpty()) return emptyList()
+        var cursor = 0.0
+        return muros.groupBy { it.estanciaId }.values.flatMap { lista ->
+            val minX = lista.minOf { minOf(it.x1, it.x2) }
+            val maxX = lista.maxOf { maxOf(it.x1, it.x2) }
+            val minY = lista.minOf { minOf(it.y1, it.y2) }
+            val dx = cursor - minX
+            val dy = -minY
+            cursor += (maxX - minX) + separacion
+            lista.map {
+                it.copy(x1 = it.x1 + dx, y1 = it.y1 + dy, x2 = it.x2 + dx, y2 = it.y2 + dy)
+            }
+        }
+    }
 }

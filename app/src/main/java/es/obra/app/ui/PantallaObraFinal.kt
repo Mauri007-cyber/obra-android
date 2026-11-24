@@ -1,7 +1,6 @@
 package es.obra.app.ui
 
 import android.content.Context
-import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.PickVisualMediaRequest
@@ -24,6 +23,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.horizontalScroll
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
@@ -34,6 +34,7 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.PhotoCamera
+import androidx.compose.material.icons.filled.RecordVoiceOver
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -66,6 +67,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import es.obra.app.datos.PreciosPropios
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.foundation.text.KeyboardOptions
@@ -76,12 +78,14 @@ import es.obra.app.datos.EstanciaEntity
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
 import es.obra.app.datos.ProyectoRepositorio
-import es.obra.app.datos.rutaFoto
+import es.obra.app.datos.borrarFoto
+import es.obra.app.datos.miniatura
 import es.obra.app.dominio.Ambito
 import es.obra.app.dominio.Cambio
 import es.obra.app.dominio.Cifra
 import es.obra.app.dominio.EstadoCambio
 import es.obra.app.dominio.EstanciaProyecto
+import es.obra.app.dominio.FraseACambios
 import es.obra.app.dominio.Proyecto
 import es.obra.app.dominio.TipoCambio
 import java.io.File
@@ -102,6 +106,7 @@ fun PantallaObraFinal(
     obraId: Long,
     dao: ObraDao,
     alVolver: () -> Unit,
+    alPropuestas: () -> Unit,
     alPlano: (Long) -> Unit,
     alRetoque: (Long) -> Unit = {}
 ) {
@@ -117,6 +122,7 @@ fun PantallaObraFinal(
     var creandoEstancia by remember { mutableStateOf(false) }
     var ensenando by remember { mutableStateOf(false) }
     var estanciaDeFoto by remember { mutableStateOf<Long?>(null) }
+    var dictando by remember { mutableStateOf<EstanciaProyecto?>(null) }
 
     fun recargar() {
         refresco++
@@ -137,7 +143,13 @@ fun PantallaObraFinal(
             val ruta = withContext(Dispatchers.IO) { copiarFoto(contexto, uri) }
             if (ruta != null) {
                 val entidad = dao.estancias(obraId).firstOrNull { it.id == destino }
-                if (entidad != null) dao.actualizarEstancia(entidad.copy(foto = ruta))
+                if (entidad != null) {
+                    val anterior = entidad.foto.takeIf { it.isNotBlank() }
+                    dao.actualizarEstancia(entidad.copy(foto = ruta))
+                    // Al cambiar la foto, la vieja se borra: si no, cada cambio deja un archivo
+                    // huérfano en el móvil que nadie vuelve a usar.
+                    anterior?.let { borrarFoto(contexto.filesDir, it) }
+                }
             }
             recargar()
         }
@@ -196,6 +208,30 @@ fun PantallaObraFinal(
             ) {
                 item { CabeceraProyecto(actual) }
 
+                item {
+                    Surface(
+                        onClick = alPropuestas,
+                        color = MaterialTheme.colorScheme.surfaceVariant,
+                        shape = MaterialTheme.shapes.medium,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(Modifier.padding(16.dp)) {
+                            Text(
+                                "¿No está claro qué hacer?",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Spacer(Modifier.height(4.dp))
+                            Text(
+                                "Marca lo que se puede tocar y la app propone tres escenarios con " +
+                                    "partidas y precios, para elegir uno.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
                 if (actual.estancias.isEmpty()) {
                     item {
                         Text(
@@ -234,6 +270,7 @@ fun PantallaObraFinal(
                         alMedir = { midiendo = estancia },
                         alPlano = { alPlano(estancia.id) },
                         alRetoque = { alRetoque(estancia.id) },
+                        alDictar = { dictando = estancia },
                         alPonerFoto = {
                             estanciaDeFoto = estancia.id
                             selectorFoto.launch(
@@ -261,16 +298,31 @@ fun PantallaObraFinal(
         DialogoCatalogo(
             estancia = estancia,
             alCerrar = { editando = null },
-            alElegir = { tipo, cantidad, acabado ->
+            alElegir = { tipo, cantidad, acabado, precioPropio ->
                 alcance.launch {
                     val nuevo = Cambio(
                         tipo = tipo,
                         cantidad = cantidad,
+                        precioPropio = precioPropio,
                         acabado = acabado,
                         estado = EstadoCambio.PROPUESTO
                     )
                     ProyectoRepositorio.guardar(dao, estancia.id, nuevo)
                     editando = null
+                    recargar()
+                }
+            }
+        )
+    }
+
+    dictando?.let { estancia ->
+        DialogoDictado(
+            estancia = estancia,
+            alCerrar = { dictando = null },
+            alGuardar = { cambios ->
+                alcance.launch {
+                    cambios.forEach { cambio -> ProyectoRepositorio.guardar(dao, estancia.id, cambio) }
+                    dictando = null
                     recargar()
                 }
             }
@@ -372,6 +424,133 @@ private fun CabeceraProyecto(proyecto: Proyecto) {
     }
 }
 
+/**
+ * Escribir como se le hablaría al oficial. No hace falta saber el catálogo ni escribir bien:
+ * se muestran los trabajos entendidos y lo que ha sobrado, antes de añadir nada.
+ */
+@Composable
+private fun DialogoDictado(
+    estancia: EstanciaProyecto,
+    alCerrar: () -> Unit,
+    alGuardar: (List<Cambio>) -> Unit
+) {
+    var frase by remember { mutableStateOf("") }
+    var analisis by remember { mutableStateOf<FraseACambios.Analisis?>(null) }
+
+    Dialog(onDismissRequest = alCerrar) {
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .fillMaxHeight(0.9f),
+            shape = RoundedCornerShape(20.dp),
+            color = MaterialTheme.colorScheme.background
+        ) {
+            Column(
+                Modifier
+                    .padding(18.dp)
+                    .verticalScroll(rememberScrollState())
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text(
+                        "Qué cambiar en ${estancia.nombre}",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold,
+                        modifier = Modifier.weight(1f)
+                    )
+                    IconButton(onClick = alCerrar) {
+                        Icon(Icons.Filled.Close, contentDescription = "Cerrar")
+                    }
+                }
+
+                Text(
+                    "Escribe como se lo dirías al oficial, aunque tenga faltas o no lleve comas. " +
+                        "Por ejemplo: «pintame el piso de blanco y pon una isla».",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = frase,
+                    onValueChange = {
+                        frase = it
+                        analisis = null
+                    },
+                    label = { Text("Qué quieres cambiar") },
+                    placeholder = { Text("Suelo de tarima y paredes blancas") },
+                    minLines = 3,
+                    modifier = Modifier.fillMaxWidth()
+                )
+                Spacer(Modifier.height(10.dp))
+
+                OutlinedButton(
+                    onClick = {
+                        analisis = FraseACambios.analizar(
+                            frase = frase,
+                            superficie = estancia.superficie,
+                            altura = estancia.altura
+                        )
+                    },
+                    enabled = frase.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth()
+                ) { Text("Ver qué entiendo") }
+
+                val resultado = analisis
+                if (resultado != null) {
+                    Spacer(Modifier.height(12.dp))
+                    if (resultado.cambios.isEmpty()) {
+                        Text(
+                            "No he reconocido ningún trabajo. Prueba con «suelo de tarima», " +
+                                "«pintar paredes de blanco» o «tres enchufes».",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Tinta.rojo
+                        )
+                    } else {
+                        Text(
+                            "He entendido ${resultado.cambios.size} trabajo(s):",
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                        resultado.cambios.forEach { cambio ->
+                            Text("· ${cambio.linea}", style = MaterialTheme.typography.bodyLarge)
+                        }
+                    }
+                    if (resultado.noEntendido.isNotEmpty()) {
+                        Spacer(Modifier.height(8.dp))
+                        Text(
+                            "No sé qué hacer con «${resultado.noEntendido.joinToString("», «")}». " +
+                                "Puedes añadir esos trabajos a mano con «Añadir cambio».",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = Tinta.rojo
+                        )
+                    }
+                }
+
+                Spacer(Modifier.height(18.dp))
+                Button(
+                    onClick = {
+                        val cambios = analisis?.cambios.orEmpty().map {
+                            it.copy(estado = EstadoCambio.PROPUESTO)
+                        }
+                        if (cambios.isNotEmpty()) alGuardar(cambios)
+                    },
+                    enabled = analisis?.cambios?.isNotEmpty() == true,
+                    modifier = Modifier.fillMaxWidth().height(56.dp)
+                ) {
+                    Text("Añadir los cambios", style = MaterialTheme.typography.labelLarge)
+                }
+                Spacer(Modifier.height(6.dp))
+                Text(
+                    "Se añaden como propuestas: revísalas y apruébalas antes de que entren en " +
+                        "el presupuesto.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+    }
+}
+
 @Composable
 private fun CifraBloque(etiqueta: String, valor: String, modifier: Modifier = Modifier) {
     Column(modifier) {
@@ -393,7 +572,8 @@ private fun TarjetaEstancia(
     alPonerFoto: () -> Unit,
     alMedir: () -> Unit,
     alPlano: () -> Unit,
-    alRetoque: () -> Unit
+    alRetoque: () -> Unit,
+    alDictar: () -> Unit
 ) {
     val contexto = LocalContext.current
     Surface(
@@ -436,7 +616,7 @@ private fun TarjetaEstancia(
 
             if (estancia.foto.isNotBlank()) {
                 Spacer(Modifier.height(10.dp))
-                val mapa = remember(estancia.foto) { rutaFoto(contexto.filesDir, estancia.foto)?.let { BitmapFactory.decodeFile(it.path) } }
+                val mapa = remember(estancia.foto) { miniatura(contexto.filesDir, estancia.foto) }
                 if (mapa != null) {
                     Image(
                         bitmap = mapa.asImageBitmap(),
@@ -453,7 +633,7 @@ private fun TarjetaEstancia(
                 OutlinedButton(onClick = alRetoque, modifier = Modifier.fillMaxWidth()) {
                     Icon(Icons.Filled.AutoAwesome, contentDescription = null, modifier = Modifier.size(16.dp))
                     Spacer(Modifier.width(6.dp))
-                    Text("Retocar la foto · gratis")
+                    Text("Enseñar la obra terminada · gratis")
                 }
             }
 
@@ -482,6 +662,24 @@ private fun TarjetaEstancia(
             OutlinedButton(onClick = alPlano, modifier = Modifier.fillMaxWidth()) {
                 Text("Abrir plano de esta estancia")
             }
+            // Lo primero para quien no conoce el catálogo: escribirlo como se lo diría al oficial.
+            Button(
+                onClick = alDictar,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = Tinta.tinta,
+                    contentColor = Tinta.papel
+                ),
+                modifier = Modifier.fillMaxWidth().height(52.dp)
+            ) {
+                Icon(
+                    Icons.Filled.RecordVoiceOver,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(Modifier.width(8.dp))
+                Text("Escribir qué quiero cambiar", style = MaterialTheme.typography.labelLarge)
+            }
+            Spacer(Modifier.height(6.dp))
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlinedButton(onClick = alAnadir, modifier = Modifier.weight(1f)) {
                     Icon(Icons.Filled.Add, contentDescription = null, modifier = Modifier.size(16.dp))
@@ -587,11 +785,13 @@ private fun EstadoBoton(
 private fun DialogoCatalogo(
     estancia: EstanciaProyecto,
     alCerrar: () -> Unit,
-    alElegir: (TipoCambio, Double, String) -> Unit
+    alElegir: (TipoCambio, Double, String, Double?) -> Unit
 ) {
+    val contexto = LocalContext.current
     var busqueda by remember { mutableStateOf("") }
     var elegido by remember { mutableStateOf<TipoCambio?>(null) }
     var cantidad by remember { mutableStateOf("") }
+    var precio by remember { mutableStateOf("") }
     var acabado by remember { mutableStateOf("") }
 
     val encontrados = if (busqueda.isBlank()) {
@@ -663,8 +863,17 @@ private fun DialogoCatalogo(
                                             1
                                         )
                                         acabado = candidato.acabados.firstOrNull().orEmpty()
+                                        precio = Cifra.numero(
+                                            PreciosPropios.propuesto(contexto, candidato),
+                                            2
+                                        )
                                     } else {
-                                        alElegir(candidato, 0.0, candidato.acabados.firstOrNull().orEmpty())
+                                        alElegir(
+                                            candidato,
+                                            0.0,
+                                            candidato.acabados.firstOrNull().orEmpty(),
+                                            PreciosPropios.leer(contexto, candidato)
+                                        )
                                     }
                                 }
                             }
@@ -703,11 +912,29 @@ private fun DialogoCatalogo(
                             }
                         }
                     }
+                    Spacer(Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = precio,
+                        onValueChange = { texto ->
+                            precio = texto.filter { c -> c.isDigit() || c == ',' || c == '.' }.take(8)
+                        },
+                        label = { Text("Tu precio (€ por ${tipo.unidad.etiqueta})") },
+                        supportingText = { Text("Se recuerda para las próximas obras.") },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                     Spacer(Modifier.height(18.dp))
                     Button(
                         onClick = {
                             val valor = cantidad.replace(",", ".").trim().toDoubleOrNull() ?: 0.0
-                            alElegir(tipo, valor.coerceAtLeast(0.0), acabado)
+                            alElegir(
+                                tipo,
+                                valor.coerceAtLeast(0.0),
+                                acabado,
+                                precio.replace(",", ".").trim().toDoubleOrNull()
+                                    ?.takeIf { it > 0.0 }
+                            )
                         },
                         modifier = Modifier.fillMaxWidth().height(56.dp)
                     ) {
@@ -845,7 +1072,8 @@ private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
                     }
                 }
                 Text(
-                    "Foto original y cambios aprobados. Todavía no es una imagen de la obra terminada.",
+                    "La foto terminada de cada estancia (o la original si todavía no la hay) y " +
+                        "los trabajos aprobados.",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -859,10 +1087,11 @@ private fun DialogoRecorrido(proyecto: Proyecto, alCerrar: () -> Unit) {
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold
                             )
-                            if (estancia.foto.isNotBlank()) {
-                                val mapa = remember(estancia.foto) {
-                                    rutaFoto(contexto.filesDir, estancia.foto)?.let { BitmapFactory.decodeFile(it.path) }
-                                }
+                            // Si ya hay imagen terminada, es la que se enseña.
+                            val imagen = estancia.fotoTerminada.takeIf { it.isNotBlank() }
+                                ?: estancia.foto
+                            if (imagen.isNotBlank()) {
+                                val mapa = remember(imagen) { miniatura(contexto.filesDir, imagen) }
                                 if (mapa != null) {
                                     Spacer(Modifier.height(6.dp))
                                     Image(

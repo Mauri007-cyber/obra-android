@@ -1,8 +1,10 @@
 # Roadmap de trabajo — "Obra" (Android)
 
-> **Decisión de producto (23-11-2026):** la app es 100 % gratuita. Se han retirado la IA
-> remota (FLUX), el recorte de fondo y su Worker porque podían generar coste. Este
-> documento se conserva como histórico de ideas descartadas.
+> **Nota (24-11-2026):** la app sigue siendo 100 % gratuita y sin claves en el APK. La imagen
+> fotorrealista sí está: la genera un Worker propio sobre el plan gratuito de Cloudflare
+> (FLUX.2 klein), con tope diario por móvil y sin método de pago. El retoque local, el plano,
+> el presupuesto y el PDF siguen funcionando sin conexión. Las ideas de IA de pago de este
+> documento quedan como histórico y siguen descartadas.
 > Documento vivo. Cada hito tiene un entregable que **se puede instalar y usar**, y un criterio de aceptación que se comprueba en un móvil real.
 > Plan de producto: [PLAN-APP-OBRA.md](PLAN-APP-OBRA.md)
 

@@ -25,7 +25,7 @@ data class Cambio(
 
     /** Las partidas enteras se cobran una vez; el resto, por cantidad. */
     val importe: Double
-        get() = if (tipo.unidad == Unidad.GLOBAL) precio else precio * cantidad.coerceAtLeast(0.0)
+        get() = if (!tipo.mide) precio else precio * cantidad.coerceAtLeast(0.0)
 
     val cerrado: Boolean get() = estado == EstadoCambio.APROBADO
 
@@ -54,7 +54,8 @@ data class Cambio(
             } else {
                 superficie
             }
-            Unidad.ML -> Math.sqrt(superficie) * 2
+            // Un cuarto de 16 m² tiene 16 m de perímetro: el rodapié recorre las cuatro paredes.
+            Unidad.ML -> Math.sqrt(superficie) * 4
             Unidad.UD -> 1.0
             Unidad.GLOBAL -> 1.0
         }
@@ -93,6 +94,8 @@ data class EstanciaProyecto(
     val superficie: Double = 0.0,
     val altura: Double = 2.5,
     val foto: String = "",
+    /** Última imagen terminada guardada, para no perderla al salir de la pantalla. */
+    val fotoTerminada: String = "",
     val cambios: List<Cambio> = emptyList(),
     val grupo: String = "A"
 ) {

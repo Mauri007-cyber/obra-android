@@ -1,8 +1,10 @@
 # Plan de producto — "Obra" (nombre provisional)
 
-> **Decisión de producto (23-11-2026):** la app es 100 % gratuita. Se han retirado la IA
-> remota (FLUX), el recorte de fondo y su Worker porque podían generar coste. Este
-> documento se conserva como histórico de ideas descartadas.
+> **Nota (24-11-2026):** la app sigue siendo 100 % gratuita y sin claves en el APK. La imagen
+> fotorrealista sí está: la genera un Worker propio sobre el plan gratuito de Cloudflare
+> (FLUX.2 klein), con tope diario por móvil y sin método de pago. El retoque local, el plano,
+> el presupuesto y el PDF siguen funcionando sin conexión. Las ideas de IA de pago de este
+> documento quedan como histórico y siguen descartadas.
 **App Android para escanear estancias, obtener un plano medido y planificar la reforma**
 Usuario principal: albañil autónomo, poca familiaridad con la tecnología. Requisito duro: **coste 0 €, para siempre**.
 
@@ -243,7 +245,7 @@ Se trabaja sobre una **copia**; el antes queda intacto para comparar.
 - Girar, zoom y **comparador antes/después** (cortinilla o dos pestañas).
 - Foto real como textura de pared (opcional): barato de hacer y con mucho efecto.
 - **Extra C**: moodboard con FLUX schnell dentro del cupo de Cloudflare (~173 imágenes/día). Etiquetado siempre como "idea de estilo, no es tu casa".
-- **W**: render fotorrealista del salón exacto con IA. No está en ningún cupo gratuito y no aporta precisión.
+- **Hoy sí**: vista previa fotorrealista orientativa con el Worker gratuito de Cloudflare (FLUX.2 klein). Nunca sustituye al presupuesto ni a las medidas.
 
 ### M6. Cómputo de materiales — M
 Con **rendimientos editables** guardados en ajustes:
@@ -455,7 +457,7 @@ Total realista: **6–7 semanas** de trabajo efectivo (algo más que la v1: el e
 
 - No sustituye a un **medidor certificado** ni sirve para licencias, catastro o certificados energéticos.
 - El escaneo es **bueno, no perfecto**: ±1–3 % en el mejor caso, y puede pedir repasar una pared. Se dice siempre.
-- No genera **renders fotorrealistas de su casa con IA**: muestra un 3D fiel en medidas y colores, no una foto publicitaria. Las imágenes de estilo son orientativas.
+- Los **renders con IA son una vista previa orientativa**, no una foto publicitaria ni una promesa de acabado: el 3D es fiel en medidas y colores, y la imagen generada puede desviarse.
 - No trae **precios de mercado**: los pone él.
 - No calcula **estructura**. Si marca un muro como de carga, la app avisa: *"muro de carga: consulta antes de tirarlo"*.
 - No hay versión para iPhone.

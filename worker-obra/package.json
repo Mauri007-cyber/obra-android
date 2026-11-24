@@ -1,0 +1,9 @@
+{
+  "name": "obra-imagen",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "prueba": "node prueba.mjs",
+    "desplegar": "wrangler deploy"
+  }
+}

@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Path
 import android.graphics.pdf.PdfDocument
+import es.obra.app.datos.EstanciaEntity
 import es.obra.app.datos.HuecoEntity
 import es.obra.app.datos.MuroEntity
 import es.obra.app.datos.ObraEntity
@@ -35,14 +36,15 @@ object PdfObra {
         contexto: Context,
         obra: ObraEntity,
         muros: List<MuroEntity> = emptyList(),
-        huecos: List<HuecoEntity> = emptyList()
+        huecos: List<HuecoEntity> = emptyList(),
+        estancias: List<EstanciaEntity> = emptyList()
     ): File {
         val documento = PdfDocument()
         val pagina = documento.startPage(
             PdfDocument.PageInfo.Builder(ANCHO, ALTO, 1).create()
         )
 
-        dibujar(pagina.canvas, obra, muros, huecos)
+        dibujar(pagina.canvas, obra, muros, huecos, estancias)
         documento.finishPage(pagina)
 
         val carpeta = File(contexto.filesDir, "export").apply { mkdirs() }
@@ -56,7 +58,8 @@ object PdfObra {
         lienzo: Canvas,
         obra: ObraEntity,
         muros: List<MuroEntity>,
-        huecos: List<HuecoEntity>
+        huecos: List<HuecoEntity>,
+        estancias: List<EstanciaEntity>
     ) {
         val tinta = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#14181C") }
         val gris = Paint(Paint.ANTI_ALIAS_FLAG).apply { color = Color.parseColor("#6B7280") }
@@ -106,7 +109,10 @@ object PdfObra {
         tinta.isFakeBoldText = false
         y += 22f
 
-        val superficie = obra.superficieEfectiva
+        // Con varias estancias, la superficie de la obra es la suma de las suyas; las medidas
+        // generales solo valen cuando la obra es una sola habitación.
+        val suma = estancias.sumOf { it.superficie }
+        val superficie = if (suma > 0.0) suma else obra.superficieEfectiva
         val perimetro = Poligono.perimetro(muros) ?: (2 * (obra.largo + obra.ancho))
         val paredes = if (muros.isNotEmpty()) {
             (muros.filter { it.estado != "tirado" }
@@ -122,6 +128,12 @@ object PdfObra {
         y = fila(lienzo, tinta, gris, y, "Superficie", "${Geometria.formatear(superficie, 2)} m²")
         y = fila(lienzo, tinta, gris, y, "Perímetro", "${Geometria.formatear(perimetro, 2)} m")
         y = fila(lienzo, tinta, gris, y, "Superficie de paredes", "${Geometria.formatear(paredes, 2)} m²")
+        if (estancias.size > 1) {
+            val detalle = estancias.joinToString(" · ") {
+                "${it.nombre} ${Geometria.formatear(it.superficie, 1)} m²"
+            }
+            y = fila(lienzo, tinta, gris, y, "Estancias", detalle.take(58))
+        }
 
         y += 12f
         lienzo.drawLine(MARGEN, y, ANCHO - MARGEN, y, regla)
@@ -160,7 +172,16 @@ object PdfObra {
             lienzo.drawText("Croquis", MARGEN, y, tinta)
             tinta.isFakeBoldText = false
             y += 16f
-            dibujarCroquis(lienzo, muros, MARGEN, y, ANCHO - MARGEN * 2, 250f, tinta, acento)
+            dibujarCroquis(
+                lienzo,
+                Poligono.enFila(muros),
+                MARGEN,
+                y,
+                ANCHO - MARGEN * 2,
+                250f,
+                tinta,
+                acento
+            )
         }
 
         // Pie

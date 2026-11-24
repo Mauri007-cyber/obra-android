@@ -43,6 +43,7 @@ import es.obra.app.datos.HuecoEntity
 import es.obra.app.datos.MuroEntity
 import es.obra.app.datos.ObraDao
 import es.obra.app.datos.ObraEntity
+import es.obra.app.dominio.Poligono
 import es.obra.app.dominio.ResumenReforma
 import es.obra.app.render.Lamina
 import es.obra.app.render.Modelo3D
@@ -79,7 +80,9 @@ fun PantallaVisual(obraId: Long, dao: ObraDao, alVolver: () -> Unit) {
     LaunchedEffect(obraId) {
         obra = dao.obtenerObra(obraId)
         val estancias = dao.estancias(obraId)
-        muros = estancias.flatMap { dao.muros(it.id) }
+        // Una al lado de otra: el plano de cada habitación empieza en su esquina y, sin esto,
+        // dos estancias se dibujan superpuestas.
+        muros = Poligono.enFila(estancias.flatMap { dao.muros(it.id) })
         huecos = estancias.flatMap { dao.huecosDeEstancia(it.id) }
     }
 

@@ -71,6 +71,8 @@ enum class TipoCambio(
 
     // Albañilería
     TABIQUE_NUEVO("Tabique nuevo de ladrillo", Ambito.ALBANILERIA, Unidad.M2, 45.0),
+    CERRAR_HUECO("Cerrar un hueco o ventana", Ambito.ALBANILERIA, Unidad.M2, 38.0),
+    AMPLIAR_HUECO("Cambiar el tamaño de un hueco", Ambito.ALBANILERIA, Unidad.UD, 140.0, mide = false),
     TABIQUE_PLADUR("Tabique de pladur", Ambito.ALBANILERIA, Unidad.M2, 38.0),
     AISLAMIENTO("Aislar pared (térmico y acústico)", Ambito.ALBANILERIA, Unidad.M2, 16.0),
     NIVELAR_SUELO("Nivelar el suelo con solera", Ambito.ALBANILERIA, Unidad.M2, 22.0),
@@ -100,15 +102,16 @@ enum class TipoCambio(
     // Techo
     FALSO_TECHO("Falso techo de pladur", Ambito.TECHO, Unidad.M2, 28.0),
     TECHO_REGISTRABLE("Techo registrable", Ambito.TECHO, Unidad.M2, 32.0, listOf("blanco", "gris")),
+    TECHO_MADERA("Techo de madera con vigas", Ambito.TECHO, Unidad.M2, 58.0, listOf("roble", "roble oscuro", "nogal")),
     MOLDURA("Moldura o cornisa", Ambito.TECHO, Unidad.ML, 9.0),
 
     // Puertas y ventanas
-    PUERTA_INTERIOR("Puerta interior nueva", Ambito.CARPINTERIA, Unidad.UD, 220.0, listOf("blanca lisa", "roble", "cristal"), mide = false),
+    PUERTA_INTERIOR("Puerta interior nueva", Ambito.CARPINTERIA, Unidad.UD, 220.0, listOf("blanca lisa", "roble", "roble oscuro", "cristal"), mide = false),
     PUERTA_CORREDERA("Puerta corredera", Ambito.CARPINTERIA, Unidad.UD, 380.0, listOf("blanca", "roble", "cristal"), mide = false),
     PUERTA_BLINDADA("Puerta blindada", Ambito.CARPINTERIA, Unidad.UD, 850.0, listOf("blanca", "roble", "negra"), mide = false),
     VENTANA_NUEVA("Ventana nueva", Ambito.CARPINTERIA, Unidad.UD, 350.0, listOf("aluminio blanco", "aluminio negro", "PVC"), mide = false),
-    VENTANA_OSCILO("Ventana oscilobatiente", Ambito.CARPINTERIA, Unidad.UD, 460.0, listOf("aluminio blanco", "aluminio negro"), mide = false),
-    VENTANA_A_BALCON("Ventana converted en puerta balcón", Ambito.CARPINTERIA, Unidad.UD, 700.0),
+    VENTANA_OSCILO("Ventana oscilobatiente", Ambito.CARPINTERIA, Unidad.UD, 460.0, listOf("aluminio blanco", "aluminio negro", "aluminio imitación madera"), mide = false),
+    VENTANA_A_BALCON("Ventana convertida en puerta balcón", Ambito.CARPINTERIA, Unidad.UD, 700.0),
     PERSIANA("Persiana nueva", Ambito.CARPINTERIA, Unidad.UD, 180.0, listOf("aluminio", "PVC"), mide = false),
     LUCERNARIO("Lucernario o ventana de tejado", Ambito.CARPINTERIA, Unidad.UD, 900.0),
 
@@ -125,6 +128,7 @@ enum class TipoCambio(
     // Cocina
     MUEBLE_COCINA("Mueble de cocina", Ambito.COCINA, Unidad.ML, 280.0, listOf("blanco mate", "roble", "verde", "gris")),
     ENCIMERA("Encimera", Ambito.COCINA, Unidad.ML, 180.0, listOf("compacto blanco", "granito", "madera")),
+    ISLA_COCINA("Isla de cocina", Ambito.COCINA, Unidad.UD, 950.0, listOf("mármol", "mármol blanco", "madera", "compacto blanco"), mide = false),
     ELECTRODOMESTICOS("Electrodomésticos", Ambito.COCINA, Unidad.GLOBAL, 1800.0, mide = false),
     CAMPANA("Campana extractora", Ambito.COCINA, Unidad.UD, 220.0, mide = false),
     FRONTAL("Frontal de cocina", Ambito.COCINA, Unidad.M2, 65.0, listOf("blanco", "verde", "madera")),
@@ -153,14 +157,20 @@ enum class TipoCambio(
     MUEBLE_TV("Mueble de salón a medida", Ambito.MOBILIARIO, Unidad.ML, 240.0);
 
     val capa: Capa
-        get() = when (ambito) {
-            Ambito.SUELO -> Capa.SUELO
-            Ambito.PARED, Ambito.PINTURA -> Capa.PARED
-            Ambito.TECHO -> Capa.TECHO
-            Ambito.CARPINTERIA -> Capa.HUECO
-            Ambito.BANO, Ambito.COCINA, Ambito.MOBILIARIO,
-            Ambito.ELECTRICIDAD, Ambito.FONTANERIA, Ambito.CLIMATIZACION -> Capa.OBJETO
-            Ambito.DEMOLICION, Ambito.ALBANILERIA, Ambito.EXTERIOR -> Capa.NINGUNA
+        get() = when (this) {
+            // Pintar el techo es techo, aunque el oficio sea pintura: si no, se tiñen las paredes.
+            PINTURA_TECHO -> Capa.TECHO
+            // Cerrar o agrandar un hueco sí se ve en la foto, aunque el oficio sea albañilería.
+            CERRAR_HUECO, AMPLIAR_HUECO -> Capa.HUECO
+            else -> when (ambito) {
+                Ambito.SUELO -> Capa.SUELO
+                Ambito.PARED, Ambito.PINTURA -> Capa.PARED
+                Ambito.TECHO -> Capa.TECHO
+                Ambito.CARPINTERIA -> Capa.HUECO
+                Ambito.BANO, Ambito.COCINA, Ambito.MOBILIARIO,
+                Ambito.ELECTRICIDAD, Ambito.FONTANERIA, Ambito.CLIMATIZACION -> Capa.OBJETO
+                Ambito.DEMOLICION, Ambito.ALBANILERIA, Ambito.EXTERIOR -> Capa.NINGUNA
+            }
         }
 
     /** Si el cambio se ve en la foto (y por tanto hay que teñir su zona). */
