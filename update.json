@@ -1,0 +1,7 @@
+{
+  "versionCode": 11,
+  "versionName": "0.9.2",
+  "apkUrl": "https://github.com/Mauri007-cyber/obra-android/releases/download/v0.9.2/obra-0.9.2.apk",
+  "sha256": "e970b23e8d2e553090ca05b47ab44de92dbb484af2a35b8548c2241d98079971",
+  "notas": "Primera versión con actualización automática desde GitHub: robustez, vídeo sin llenar memoria y presupuesto con las unidades corregidas."
+}
