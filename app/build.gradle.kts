@@ -38,8 +38,8 @@ android {
                 abiFilters += listOf("arm64-v8a", "armeabi-v7a")
             }
         }
-        versionCode = 14
-        versionName = "0.9.5"
+        versionCode = 15
+        versionName = "0.9.6"
 
         // Manifiesto de autoactualización. Cambiar por la URL real del release.
         buildConfigField(

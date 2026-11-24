@@ -23,7 +23,11 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.EditNote
+import androidx.compose.material.icons.filled.Euro
+import androidx.compose.material.icons.filled.Image
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Straighten
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -111,132 +115,178 @@ fun AppObra() {
         hayVersionNueva = actualizador.comprobar() is EstadoActualizacion.Disponible
     }
 
-    when (val actual = pantalla) {
-        Pantalla.Inicio -> PantallaInicio(
-            dao = dao,
-            hayVersion = hayVersionNueva,
-            alAbrir = { pantalla = Pantalla.Obra(it) },
-            alCrear = { pantalla = Pantalla.NuevaObra },
-            alActualizar = { pantalla = Pantalla.Actualizar }
-        )
+    // Dentro de una obra, las cuatro cosas que se hacen siempre, a un toque y siempre visibles.
+    val obraEnCurso: Long? = when (val p = pantalla) {
+        is Pantalla.Obra -> p.id
+        is Pantalla.ObraFinal -> p.id
+        is Pantalla.Presupuesto -> p.id
+        is Pantalla.Visual -> p.id
+        else -> null
+    }
 
-        Pantalla.NuevaObra -> PantallaNuevaObra(
-            alVolver = { pantalla = Pantalla.Inicio },
-            alCrear = { nombre, direccion, cliente, estancia ->
-                alcance.launch {
-                    val id = dao.insertarObra(
-                        ObraEntity(nombre = nombre, direccion = direccion, cliente = cliente)
-                    )
-                    // Si la obra es un solo baño o una cocina, la estancia ya queda creada.
-                    if (estancia.isNotBlank()) {
-                        dao.insertarEstancia(EstanciaEntity(obraId = id, nombre = estancia))
-                    }
-                    // Con la estancia ya hecha se va directo a decir qué cambia, sin pasos.
-                    pantalla = if (estancia.isBlank()) Pantalla.Obra(id) else Pantalla.ObraFinal(id)
-                }
-            }
-        )
+    Column(Modifier.fillMaxSize()) {
+        Box(Modifier.weight(1f)) {
+            when (val actual = pantalla) {
+                Pantalla.Inicio -> PantallaInicio(
+                    dao = dao,
+                    hayVersion = hayVersionNueva,
+                    alAbrir = { pantalla = Pantalla.Obra(it) },
+                    alCrear = { pantalla = Pantalla.NuevaObra },
+                    alActualizar = { pantalla = Pantalla.Actualizar }
+                )
 
-        is Pantalla.Obra -> PantallaObra(
-            id = actual.id,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.Inicio },
-            alMedir = { pantalla = Pantalla.Medir(actual.id) },
-            alPlano = { pantalla = Pantalla.Plano(actual.id) },
-            alVisual = { pantalla = Pantalla.Visual(actual.id) },
-            alPresupuesto = { pantalla = Pantalla.Presupuesto(actual.id) },
-            alProyecto = { pantalla = Pantalla.ObraFinal(actual.id) },
-            alActualizar = { pantalla = Pantalla.Actualizar }
-        )
-
-        is Pantalla.Plano -> PantallaPlano(
-            obraId = actual.id,
-            dao = dao,
-            estanciaSeleccionadaId = actual.estanciaId,
-            alVolver = { pantalla = if (actual.estanciaId == null) Pantalla.Obra(actual.id) else Pantalla.ObraFinal(actual.id) },
-            alAplicar = { largo, ancho, superficie ->
-                alcance.launch {
-                    if (actual.estanciaId != null) {
-                        dao.guardarSuperficieEstancia(actual.id, actual.estanciaId, superficie)
-                    } else dao.obtenerObra(actual.id)?.let { obra ->
-                        dao.actualizarObra(
-                            obra.copy(
-                                largo = largo,
-                                ancho = if (ancho > 0.0) ancho else obra.ancho,
-                                metodo = "plano",
-                                superficieCerrada = superficie
+                Pantalla.NuevaObra -> PantallaNuevaObra(
+                    alVolver = { pantalla = Pantalla.Inicio },
+                    alCrear = { nombre, direccion, cliente, estancia ->
+                        alcance.launch {
+                            val id = dao.insertarObra(
+                                ObraEntity(nombre = nombre, direccion = direccion, cliente = cliente)
                             )
-                        )
+                            // Si la obra es un solo baño o una cocina, la estancia ya queda creada.
+                            if (estancia.isNotBlank()) {
+                                dao.insertarEstancia(EstanciaEntity(obraId = id, nombre = estancia))
+                            }
+                            // Con la estancia ya hecha se va directo a decir qué cambia, sin pasos.
+                            pantalla = if (estancia.isBlank()) Pantalla.Obra(id) else Pantalla.ObraFinal(id)
+                        }
                     }
-                    pantalla = if (actual.estanciaId == null) Pantalla.Obra(actual.id) else Pantalla.ObraFinal(actual.id)
+                )
+
+                is Pantalla.Obra -> PantallaObra(
+                    id = actual.id,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.Inicio },
+                    alMedir = { pantalla = Pantalla.Medir(actual.id) },
+                    alPlano = { pantalla = Pantalla.Plano(actual.id) },
+                    alVisual = { pantalla = Pantalla.Visual(actual.id) },
+                    alPresupuesto = { pantalla = Pantalla.Presupuesto(actual.id) },
+                    alProyecto = { pantalla = Pantalla.ObraFinal(actual.id) },
+                    alActualizar = { pantalla = Pantalla.Actualizar }
+                )
+
+                is Pantalla.Plano -> PantallaPlano(
+                    obraId = actual.id,
+                    dao = dao,
+                    estanciaSeleccionadaId = actual.estanciaId,
+                    alVolver = { pantalla = if (actual.estanciaId == null) Pantalla.Obra(actual.id) else Pantalla.ObraFinal(actual.id) },
+                    alAplicar = { largo, ancho, superficie ->
+                        alcance.launch {
+                            if (actual.estanciaId != null) {
+                                dao.guardarSuperficieEstancia(actual.id, actual.estanciaId, superficie)
+                            } else dao.obtenerObra(actual.id)?.let { obra ->
+                                dao.actualizarObra(
+                                    obra.copy(
+                                        largo = largo,
+                                        ancho = if (ancho > 0.0) ancho else obra.ancho,
+                                        metodo = "plano",
+                                        superficieCerrada = superficie
+                                    )
+                                )
+                            }
+                            pantalla = if (actual.estanciaId == null) Pantalla.Obra(actual.id) else Pantalla.ObraFinal(actual.id)
+                        }
+                    }
+                )
+
+                is Pantalla.Visual -> PantallaVisual(
+                    obraId = actual.id,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.Obra(actual.id) }
+                )
+
+                is Pantalla.Presupuesto -> PantallaPresupuesto(
+                    obraId = actual.id,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.Obra(actual.id) }
+                )
+
+                is Pantalla.ObraFinal -> PantallaObraFinal(
+                    obraId = actual.id,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.Obra(actual.id) },
+                    alPropuestas = { pantalla = Pantalla.Propuestas(actual.id) },
+                    alPlano = { estanciaId -> pantalla = Pantalla.Plano(actual.id, estanciaId) },
+                    alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) }
+                )
+
+                is Pantalla.Propuestas -> PantallaPropuestas(
+                    obraId = actual.id,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.ObraFinal(actual.id) }
+                )
+
+                is Pantalla.Retoque -> PantallaRetoque(
+                    obraId = actual.id,
+                    estanciaId = actual.estanciaId,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.ObraFinal(actual.id) }
+                )
+
+                is Pantalla.Medir -> PantallaMedir(
+                    alVolver = { pantalla = Pantalla.Obra(actual.id) },
+                    alEscanear = { pantalla = Pantalla.Escanear(actual.id) },
+                    alFoto = { pantalla = Pantalla.MedirFoto(actual.id) }
+                )
+
+                is Pantalla.MedirFoto -> PantallaMedirFoto(
+                    alVolver = { pantalla = Pantalla.Medir(actual.id) },
+                    alAplicar = { superficie ->
+                        alcance.launch {
+                            dao.obtenerObra(actual.id)?.let { obra ->
+                                dao.actualizarObra(
+                                    obra.copy(metodo = "foto", superficieCerrada = superficie)
+                                )
+                            }
+                            pantalla = Pantalla.Obra(actual.id)
+                        }
+                    }
+                )
+
+                is Pantalla.Escanear -> PantallaEscanear(
+                    obraId = actual.id,
+                    dao = dao,
+                    alVolver = { pantalla = Pantalla.Medir(actual.id) },
+                    alTerminar = { pantalla = Pantalla.Obra(actual.id) }
+                )
+
+                Pantalla.Actualizar -> PantallaActualizar(
+                    alVolver = { pantalla = Pantalla.Inicio }
+                )
+            }
+        }
+        if (obraEnCurso != null) {
+            BarraPasos(obraId = obraEnCurso, pantalla = pantalla, alIr = { pantalla = it })
+        }
+    }
+}
+
+/** Las cuatro pantallas de una obra. Siempre abajo, siempre en el mismo orden. */
+@Composable
+private fun BarraPasos(obraId: Long, pantalla: Pantalla, alIr: (Pantalla) -> Unit) {
+    val pasos = listOf(
+        Triple("Medidas", Icons.Filled.Straighten, Pantalla.Obra(obraId)),
+        Triple("Cambios", Icons.Filled.EditNote, Pantalla.ObraFinal(obraId)),
+        Triple("Presupuesto", Icons.Filled.Euro, Pantalla.Presupuesto(obraId)),
+        Triple("Ver", Icons.Filled.Image, Pantalla.Visual(obraId))
+    )
+    Surface(tonalElevation = 6.dp) {
+        Row(Modifier.fillMaxWidth().padding(vertical = 4.dp)) {
+            pasos.forEach { (etiqueta, icono, destino) ->
+                val activo = pantalla::class == destino::class
+                val color = if (activo) Tinta.obra else MaterialTheme.colorScheme.onSurfaceVariant
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clickable { alIr(destino) }
+                        .padding(vertical = 6.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    Icon(icono, contentDescription = etiqueta, tint = color)
+                    Text(etiqueta, style = MaterialTheme.typography.labelLarge, color = color)
                 }
             }
-        )
-
-        is Pantalla.Visual -> PantallaVisual(
-            obraId = actual.id,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.Obra(actual.id) }
-        )
-
-        is Pantalla.Presupuesto -> PantallaPresupuesto(
-            obraId = actual.id,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.Obra(actual.id) }
-        )
-
-        is Pantalla.ObraFinal -> PantallaObraFinal(
-            obraId = actual.id,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.Obra(actual.id) },
-            alPropuestas = { pantalla = Pantalla.Propuestas(actual.id) },
-            alPlano = { estanciaId -> pantalla = Pantalla.Plano(actual.id, estanciaId) },
-            alRetoque = { estanciaId -> pantalla = Pantalla.Retoque(actual.id, estanciaId) }
-        )
-
-        is Pantalla.Propuestas -> PantallaPropuestas(
-            obraId = actual.id,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.ObraFinal(actual.id) }
-        )
-
-        is Pantalla.Retoque -> PantallaRetoque(
-            obraId = actual.id,
-            estanciaId = actual.estanciaId,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.ObraFinal(actual.id) }
-        )
-
-        is Pantalla.Medir -> PantallaMedir(
-            alVolver = { pantalla = Pantalla.Obra(actual.id) },
-            alEscanear = { pantalla = Pantalla.Escanear(actual.id) },
-            alFoto = { pantalla = Pantalla.MedirFoto(actual.id) }
-        )
-
-        is Pantalla.MedirFoto -> PantallaMedirFoto(
-            alVolver = { pantalla = Pantalla.Medir(actual.id) },
-            alAplicar = { superficie ->
-                alcance.launch {
-                    dao.obtenerObra(actual.id)?.let { obra ->
-                        dao.actualizarObra(
-                            obra.copy(metodo = "foto", superficieCerrada = superficie)
-                        )
-                    }
-                    pantalla = Pantalla.Obra(actual.id)
-                }
-            }
-        )
-
-        is Pantalla.Escanear -> PantallaEscanear(
-            obraId = actual.id,
-            dao = dao,
-            alVolver = { pantalla = Pantalla.Medir(actual.id) },
-            alTerminar = { pantalla = Pantalla.Obra(actual.id) }
-        )
-
-        Pantalla.Actualizar -> PantallaActualizar(
-            alVolver = { pantalla = Pantalla.Inicio }
-        )
+        }
     }
 }
 
