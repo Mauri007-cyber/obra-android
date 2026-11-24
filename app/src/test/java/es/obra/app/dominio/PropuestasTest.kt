@@ -161,6 +161,27 @@ class PropuestasTest {
     }
 
     @Test
+    fun `los chips se reparten en bloques cortos sin perder ninguno`() {
+        val bloques = Propuestas.porGrupo()
+
+        assertEquals(GrupoChips.entries.size, bloques.size)
+        bloques.forEach { (grupo, chips) ->
+            assertTrue("El bloque «${grupo.etiqueta}» está vacío", chips.isNotEmpty())
+            assertTrue(
+                "El título «${grupo.etiqueta}» es demasiado largo para un bloque",
+                grupo.etiqueta.length <= 14
+            )
+            // Un bloque de más de seis chips vuelve a agobiar: mejor partirlo.
+            assertTrue(
+                "El bloque «${grupo.etiqueta}» tiene ${chips.size} chips",
+                chips.size <= 6
+            )
+        }
+        assertEquals(Permiso.entries.size, bloques.sumOf { it.second.size })
+        assertEquals(Permiso.entries.toSet(), bloques.flatMap { it.second }.toSet())
+    }
+
+    @Test
     fun `ninguna partida del catalogo se queda sin chip`() {
         val abiertas = Permiso.entries.flatMap { it.abre }.toSet()
         val huerfanas = TipoCambio.entries.filter { it !in abiertas }.map { it.name }

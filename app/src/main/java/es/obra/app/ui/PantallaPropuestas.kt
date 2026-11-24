@@ -204,21 +204,32 @@ fun PantallaPropuestas(
             Spacer(Modifier.height(18.dp))
             Text("¿Qué estás dispuesto a hacer?", style = MaterialTheme.typography.bodyLarge)
             Spacer(Modifier.height(8.dp))
-            // FlowRow y no columnas fijas: con catorce chips, dos por fila se salían en pantallas
-            // estrechas y las etiquetas largas se cortaban.
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
-            ) {
-                Permiso.entries.forEach { opcion ->
-                    FilterChip(
-                        selected = opcion in permite,
-                        onClick = {
-                            permite = if (opcion in permite) permite - opcion
-                            else permite + opcion
-                        },
-                        label = { Text(opcion.etiqueta) }
-                    )
+            // Cuatro bloques cortos en vez de catorce chips sueltos, que agobian a quien no sabe
+            // de obra. Dentro de cada bloque, FlowRow: con columnas fijas las etiquetas largas se
+            // cortaban en pantallas estrechas.
+            Propuestas.porGrupo().forEachIndexed { indice, (grupo, opciones) ->
+                if (indice > 0) Spacer(Modifier.height(12.dp))
+                Text(
+                    grupo.etiqueta,
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Spacer(Modifier.height(6.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalArrangement = Arrangement.spacedBy(2.dp)
+                ) {
+                    opciones.forEach { opcion ->
+                        FilterChip(
+                            selected = opcion in permite,
+                            onClick = {
+                                permite = if (opcion in permite) permite - opcion
+                                else permite + opcion
+                            },
+                            label = { Text(opcion.etiqueta) }
+                        )
+                    }
                 }
             }
 

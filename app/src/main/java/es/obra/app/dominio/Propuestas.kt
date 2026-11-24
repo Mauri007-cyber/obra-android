@@ -66,14 +66,33 @@ private fun tiposDe(ambito: Ambito): Set<TipoCambio> =
     TipoCambio.entries.filter { it.ambito == ambito }.toSet()
 
 /**
+ * Bloques cortos en los que se reparten los chips. Catorce sueltos de golpe agobian a quien no
+ * sabe de obra; con cuatro títulos se encuentra lo que busca sin leerlo todo.
+ */
+enum class GrupoChips(val etiqueta: String) {
+    ESTRUCTURA("Estructura"),
+    ACABADOS("Acabados"),
+    INSTALACIONES("Instalaciones"),
+    MOBILIARIO("Muebles")
+}
+
+/**
  * Lo que el cliente está dispuesto a tocar. Cada chip abre solo sus partidas: la app manda a la
  * IA únicamente ese trozo del catálogo y después tira lo que se salga. Así «no quiero tirar
  * paredes» se cumple de verdad, en vez de quedarse en una frase del prompt que el modelo puede
  * ignorar.
+ *
+ * El orden de los valores es el que se pinta: primero por bloque y dentro de cada bloque de lo
+ * más gordo a lo más pequeño.
  */
-enum class Permiso(val etiqueta: String, val abre: Set<TipoCambio>) {
+enum class Permiso(
+    val etiqueta: String,
+    val grupo: GrupoChips,
+    val abre: Set<TipoCambio>
+) {
     TIRAR_PAREDES(
         "tirar paredes",
+        GrupoChips.ESTRUCTURA,
         setOf(
             TipoCambio.TABIQUE_TIRADO,
             TipoCambio.ABRIR_HUECO,
@@ -83,6 +102,7 @@ enum class Permiso(val etiqueta: String, val abre: Set<TipoCambio>) {
     ),
     MOVER_TABIQUES(
         "mover tabiques",
+        GrupoChips.ESTRUCTURA,
         setOf(
             TipoCambio.TABIQUE_TIRADO,
             TipoCambio.ABRIR_HUECO,
@@ -92,46 +112,79 @@ enum class Permiso(val etiqueta: String, val abre: Set<TipoCambio>) {
             TipoCambio.TABIQUE_PLADUR
         )
     ),
+    CAMBIAR_TECHO(
+        "cambiar el techo",
+        GrupoChips.ESTRUCTURA,
+        tiposDe(Ambito.TECHO)
+    ),
+    // La fachada es obra de exterior, no «pintar» por dentro: tiene su propio chip.
+    FACHADA(
+        "fachada y exterior",
+        GrupoChips.ESTRUCTURA,
+        setOf(
+            TipoCambio.PINTURA_FACHADA,
+            TipoCambio.AISLAMIENTO,
+            TipoCambio.IMPERMEABILIZAR
+        )
+    ),
     CAMBIAR_SUELOS(
         "cambiar suelos",
+        GrupoChips.ACABADOS,
         tiposDe(Ambito.SUELO) + setOf(
             TipoCambio.LEVANTAR_SUELO,
             TipoCambio.NIVELAR_SUELO,
             TipoCambio.RECRECIDO
         )
     ),
-    CAMBIAR_PUERTAS("cambiar puertas y ventanas", tiposDe(Ambito.CARPINTERIA)),
+    CAMBIAR_PUERTAS(
+        "cambiar puertas y ventanas",
+        GrupoChips.ACABADOS,
+        tiposDe(Ambito.CARPINTERIA)
+    ),
     ALICATAR(
         "alicatar o revestir paredes",
+        GrupoChips.ACABADOS,
         tiposDe(Ambito.PARED) + TipoCambio.QUITAR_ALICATADO
     ),
-    PINTAR("pintar", tiposDe(Ambito.PINTURA)),
-    CAMBIAR_TECHO("cambiar el techo", tiposDe(Ambito.TECHO)),
-    RENOVAR_COCINA("renovar cocina", tiposDe(Ambito.COCINA)),
+    PINTAR(
+        "pintar",
+        GrupoChips.ACABADOS,
+        tiposDe(Ambito.PINTURA)
+    ),
+    AISLAR(
+        "aislar e impermeabilizar",
+        GrupoChips.ACABADOS,
+        setOf(TipoCambio.AISLAMIENTO, TipoCambio.IMPERMEABILIZAR)
+    ),
+    RENOVAR_COCINA(
+        "renovar cocina",
+        GrupoChips.INSTALACIONES,
+        tiposDe(Ambito.COCINA)
+    ),
     // Un baño nuevo necesita mover agua, desagüe y termo, no solo cambiar los sanitarios.
     RENOVAR_BANO(
         "renovar baño",
+        GrupoChips.INSTALACIONES,
         tiposDe(Ambito.BANO) + setOf(
             TipoCambio.TOMA_AGUA,
             TipoCambio.DESAGUE,
             TipoCambio.TERMO
         )
     ),
-    ELECTRICIDAD("electricidad", tiposDe(Ambito.ELECTRICIDAD)),
-    CLIMATIZACION("calefacción y aire", tiposDe(Ambito.CLIMATIZACION)),
-    AISLAR(
-        "aislar e impermeabilizar",
-        setOf(TipoCambio.AISLAMIENTO, TipoCambio.IMPERMEABILIZAR)
+    ELECTRICIDAD(
+        "electricidad",
+        GrupoChips.INSTALACIONES,
+        tiposDe(Ambito.ELECTRICIDAD)
     ),
-    MOBILIARIO("muebles a medida", tiposDe(Ambito.MOBILIARIO)),
-    // La fachada es obra de exterior, no «pintar» por dentro: tiene su propio chip.
-    FACHADA(
-        "fachada y exterior",
-        setOf(
-            TipoCambio.PINTURA_FACHADA,
-            TipoCambio.AISLAMIENTO,
-            TipoCambio.IMPERMEABILIZAR
-        )
+    CLIMATIZACION(
+        "calefacción y aire",
+        GrupoChips.INSTALACIONES,
+        tiposDe(Ambito.CLIMATIZACION)
+    ),
+    MOBILIARIO(
+        "muebles a medida",
+        GrupoChips.MOBILIARIO,
+        tiposDe(Ambito.MOBILIARIO)
     )
 }
 
@@ -142,6 +195,10 @@ object Propuestas {
         isLenient = true
         encodeDefaults = true
     }
+
+    /** Los chips tal cual se pintan: cada bloque con sus opciones, en el orden del enum. */
+    fun porGrupo(): List<Pair<GrupoChips, List<Permiso>>> =
+        GrupoChips.entries.map { grupo -> grupo to Permiso.entries.filter { it.grupo == grupo } }
 
     /**
      * Trozo del catálogo que abren los chips marcados. Sin chips no se limita nada: decide la

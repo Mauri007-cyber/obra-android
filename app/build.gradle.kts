@@ -14,7 +14,11 @@ val keystorePropsFile = rootProject.file("keystore.properties")
 // Dirección del Worker propio que genera la imagen (plan gratuito de Cloudflare).
 // Por defecto apunta al Worker del proyecto: una APK recién compilada nunca sale sin servicio.
 // Para usar otro Worker: -PimagenUrl=https://otro.workers.dev
+// Un -PimagenUrl= vacío también cae en el Worker del proyecto: si no, la APK sale desconectada
+// y el botón de generar imagen queda apagado sin explicación (lo vigila ConfiguracionTest).
 val urlImagen = providers.gradleProperty("imagenUrl").orNull
+    ?.trim()
+    ?.takeIf { it.isNotEmpty() }
     ?: "https://obra-imagen.obra-reformas.workers.dev"
 
 android {
